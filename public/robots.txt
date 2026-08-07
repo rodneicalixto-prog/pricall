@@ -1,0 +1,15 @@
+User-agent: *
+Allow: /$
+Allow: /entrar
+Allow: /criar-empresa
+Allow: /termos
+Allow: /privacidade
+Disallow: /painel
+Disallow: /atendimentos
+Disallow: /equipe
+Disallow: /relatorios
+Disallow: /configuracoes
+Disallow: /kanban
+Disallow: /agenda
+Disallow: /notificacoes
+Disallow: /api/

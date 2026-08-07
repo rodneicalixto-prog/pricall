@@ -1,0 +1,25 @@
+{
+  "name": "PRICALL — Central de atendimento",
+  "short_name": "PRICALL",
+  "description": "Organize os atendimentos da sua equipe de vendas no WhatsApp.",
+  "start_url": "/atendimentos",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#F8FAFC",
+  "theme_color": "#16A34A",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "categories": ["business", "productivity"],
+  "icons": [
+    { "src": "/icone.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icone-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icone-mascara.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Atendimentos", "url": "/atendimentos" },
+    { "name": "Painel", "url": "/painel" },
+    { "name": "Agenda", "url": "/agenda" }
+  ]
+}

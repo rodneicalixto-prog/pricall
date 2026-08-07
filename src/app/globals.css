@@ -1,0 +1,160 @@
+@import "tailwindcss";
+
+/**
+ * PRICALL — identidade visual própria.
+ * Nada de logotipo, cores ou elementos de interface do WhatsApp.
+ */
+
+@theme {
+  --color-brand-50: #f0fdf4;
+  --color-brand-100: #dcfce7;
+  --color-brand-200: #bbf7d0;
+  --color-brand-300: #86efac;
+  --color-brand-400: #4ade80;
+  --color-brand-500: #16a34a;
+  --color-brand-600: #15803d;
+  --color-brand-700: #166534;
+  --color-brand-800: #14532d;
+  --color-brand-900: #052e16;
+
+  --color-alerta: #f59e0b;
+  --color-erro: #dc2626;
+  --color-informacao: #2563eb;
+
+  --font-sans: var(--fonte-app), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  --radius-card: 0.75rem;
+}
+
+:root {
+  /* Cor principal configurável por empresa (definida no layout do app). */
+  --primaria: #16a34a;
+  --primaria-escura: #166534;
+
+  --fundo: #f8fafc;
+  --superficie: #ffffff;
+  --superficie-2: #f1f5f9;
+  --borda: #e2e8f0;
+  --texto: #0f172a;
+  --texto-2: #64748b;
+  --texto-3: #94a3b8;
+
+  --escala-fonte: 1;
+}
+
+.tema-escuro {
+  --fundo: #0b1120;
+  --superficie: #111827;
+  --superficie-2: #1e293b;
+  --borda: #334155;
+  --texto: #f1f5f9;
+  --texto-2: #94a3b8;
+  --texto-3: #64748b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.tema-claro):not(.tema-escuro) {
+    --fundo: #0b1120;
+    --superficie: #111827;
+    --superficie-2: #1e293b;
+    --borda: #334155;
+    --texto: #f1f5f9;
+    --texto-2: #94a3b8;
+    --texto-3: #64748b;
+  }
+}
+
+html {
+  font-size: calc(100% * var(--escala-fonte));
+}
+
+body {
+  background-color: var(--fundo);
+  color: var(--texto);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Foco sempre visível — requisito de acessibilidade. */
+:focus-visible {
+  outline: 2px solid var(--primaria);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Respeita a preferência do sistema e a configuração do usuário. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.movimento-reduzido *,
+.movimento-reduzido *::before,
+.movimento-reduzido *::after {
+  animation-duration: 0.01ms !important;
+  transition-duration: 0.01ms !important;
+}
+
+/* Densidade de visualização */
+.densidade-compacta {
+  --espaco-lista: 0.5rem;
+}
+.densidade-confortavel {
+  --espaco-lista: 0.875rem;
+}
+
+@utility superficie {
+  background-color: var(--superficie);
+  border-color: var(--borda);
+}
+
+@utility texto-secundario {
+  color: var(--texto-2);
+}
+
+/* Barra de rolagem discreta */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--borda) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: var(--borda);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+/* Conteúdo visível apenas para leitores de tela. */
+.apenas-leitor-tela {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Skeleton de carregamento */
+@keyframes pulsar-suave {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+.esqueleto {
+  animation: pulsar-suave 1.6s ease-in-out infinite;
+  background-color: var(--superficie-2);
+  border-radius: 0.5rem;
+}
