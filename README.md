@@ -66,7 +66,7 @@ mensagens recebidas — é assim que se testa o fluxo completo sem número real.
 | `npm run build`      | Build de produção                             |
 | `npm start`          | Servidor de produção                          |
 | `npm run typecheck`  | Verificação de tipos                          |
-| `npm test`           | Suíte completa (86 testes)                    |
+| `npm test`           | Suíte completa (107 testes)                   |
 | `npm run db:migrate` | Aplica as migrações                           |
 | `npm run db:seed`    | Cria os dados de demonstração                 |
 | `npm run db:generate`| Gera nova migração a partir do esquema        |
@@ -221,6 +221,16 @@ de qualquer gravação em log. Mensagens de erro nunca trazem payload cru.
 Telefone pode ser mascarado para vendedores. Contexto enviado à IA passa por
 `redact()`, que mascara CPF, CNPJ, e-mail e telefone.
 
+**Monitoramento.** O Sentry é opcional e desligado por padrão. Quando
+`SENTRY_DSN` está configurado, os eventos passam por `limparEvento`
+(`src/lib/observability.ts`) antes de sair: cookies e cabeçalhos de
+autenticação são removidos, o corpo das rotas sensíveis é descartado, chaves
+com telefone/token/conteúdo de mensagem viram `[oculto]`, e o usuário é
+identificado só por id e perfil — sem nome, e-mail ou IP. Não há Session
+Replay: gravar a tela de uma central de atendimento capturaria conversa de
+cliente. Erros previsíveis (validação, permissão, sessão expirada) não são
+reportados.
+
 **Auditoria.** Login, logout, cadastro e desativação de usuários,
 transferências, encerramentos, exportações e alterações de integração — com IP
 e navegador.
@@ -233,7 +243,7 @@ e navegador.
 npm test
 ```
 
-**86 testes, três arquivos.** Os de integração rodam contra um Postgres real
+**107 testes, cinco arquivos.** Os de integração rodam contra um Postgres real
 (PGlite), sem mock de banco.
 
 - `tests/unitarios.test.ts` — distribuição, permissões, transições de status,
@@ -243,6 +253,9 @@ npm test
   mais idempotência, eventos fora de ordem e bloqueio de contato.
 - `tests/permissoes.test.ts` — escopo por perfil, isolamento entre empresas,
   distribuição aplicada ao banco, mascaramento, kanban, métricas e auditoria.
+- `tests/email.test.ts` — adaptadores, modelos e escape de HTML.
+- `tests/observabilidade.test.ts` — a limpeza que impede dado de cliente de
+  sair junto com um relatório de erro.
 
 Três bugs reais foram encontrados por essa suíte durante o desenvolvimento e
 corrigidos: `ON CONFLICT` sobre índice parcial sem repetir o predicado (que
@@ -356,7 +369,6 @@ A arquitetura em módulos comporta esses domínios sem reescrita.
   assinada para o upload pela interface.
 - **MFA.** As colunas existem em `users`; o fluxo de ativação não foi
   implementado.
-- **Sentry.** A variável está prevista; a instrumentação não foi adicionada.
 - **Rate limit em memória.** Suficiente para um processo. Em ambiente
   serverless com várias instâncias, o limite efetivo fica mais frouxo — troque
   o `store` de `src/lib/rate-limit.ts` por Redis mantendo a mesma assinatura.

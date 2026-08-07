@@ -128,6 +128,24 @@ trocar a variável, o código já suporta.
 Deixe `MAIL_PROVIDER=log` se quiser adiar o e-mail: o sistema segue
 funcionando e os links aparecem no log do Vercel e na própria tela.
 
+### Monitoramento (recomendado no piloto)
+
+```
+SENTRY_DSN=https://…@…ingest.sentry.io/…
+NEXT_PUBLIC_SENTRY_DSN=<mesmo valor>
+```
+
+Crie um projeto Next.js em <https://sentry.io> e copie o DSN. As duas
+variáveis recebem o mesmo valor — o prefixo `NEXT_PUBLIC_` é o que faz o Next
+entregar o DSN ao navegador. O DSN não é segredo: ele só permite enviar
+eventos, nunca lê-los.
+
+Para o rastreamento de pilha vir legível em vez de minificado, adicione
+também `SENTRY_ORG`, `SENTRY_PROJECT` e `SENTRY_AUTH_TOKEN` (token com escopo
+`project:releases`). Sem eles o Sentry funciona, só fica mais difícil de ler.
+
+Sem DSN configurado, a biblioteca nem é baixada pelo navegador.
+
 ### Opcionais
 
 ```
@@ -247,9 +265,7 @@ parou, o problema costuma estar lá, não aqui.
 
 Na ordem de prioridade:
 
-1. **Sentry** — `SENTRY_DSN`. Com mais gente usando, você quer saber do erro
-   antes de alguém reclamar.
-2. **Rate limit em Redis** — Upstash tem plano gratuito e conversa bem com o Vercel.
+1. **Rate limit em Redis** — Upstash tem plano gratuito e conversa bem com o Vercel.
 3. **E-mail em serviço transacional** — Resend ou SendGrid, com domínio próprio.
    Entregabilidade melhor e sem o limite diário do Gmail.
 4. **Backup do banco** — o Supabase faz automático no plano pago; no gratuito,

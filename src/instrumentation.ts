@@ -5,8 +5,19 @@
  * descoberto em uso.
  */
 import { assertProductionEnv, env } from "@/lib/env";
+import { sentryHabilitado } from "@/lib/observability";
 
 export async function register() {
+  // Sentry por runtime; sem DSN configurado nada é carregado.
+  if (sentryHabilitado) {
+    if (process.env.NEXT_RUNTIME === "nodejs") {
+      await import("../sentry.server.config");
+    }
+    if (process.env.NEXT_RUNTIME === "edge") {
+      await import("../sentry.edge.config");
+    }
+  }
+
   const problemas = assertProductionEnv();
 
   if (problemas.length > 0) {
@@ -38,6 +49,6 @@ export async function register() {
   }
 
   console.info(
-    `[pricall] iniciado · ambiente=${env.nodeEnv} · banco=${env.databaseDriver} · e-mail=${env.mail.provider} · ia=${env.ai.provider}`,
+    `[pricall] iniciado · ambiente=${env.nodeEnv} · banco=${env.databaseDriver} · e-mail=${env.mail.provider} · ia=${env.ai.provider} · sentry=${sentryHabilitado ? "ativo" : "desligado"}`,
   );
 }
