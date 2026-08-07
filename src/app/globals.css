@@ -135,6 +135,13 @@ body {
   background-clip: content-box;
 }
 
+/* Placeholder de campo de uma linha: corta com reticências em vez de quebrar. */
+.placeholder-uma-linha::placeholder {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Conteúdo visível apenas para leitores de tela. */
 .apenas-leitor-tela {
   position: absolute;

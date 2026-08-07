@@ -420,7 +420,9 @@ export function PainelConversa({
             <p className="truncate text-xs text-[var(--texto-2)]">
               {contact?.phone}
               {connection && ` · ${connection.label}`}
-              {connection?.extension && ` (ramal ${connection.extension})`}
+              {connection?.extension &&
+                !connection.label.includes(connection.extension) &&
+                ` (ramal ${connection.extension})`}
             </p>
           </div>
 
@@ -479,7 +481,7 @@ export function PainelConversa({
               aria-label="Prioridade do atendimento"
               value={conversation.priority}
               onChange={(e) => void alterarPrioridade(e.target.value)}
-              className="h-9 rounded-lg border border-[var(--borda)] bg-[var(--superficie)] px-2 text-xs"
+              className="h-9 min-w-0 max-w-40 rounded-lg border border-[var(--borda)] bg-[var(--superficie)] px-2 text-xs"
             >
               <option value="low">Prioridade baixa</option>
               <option value="normal">Prioridade normal</option>
@@ -673,8 +675,8 @@ export function PainelConversa({
               </p>
             )}
 
-            <div className="flex items-end gap-1.5">
-              <div className="flex">
+            <div className="flex items-end gap-1">
+              <div className="flex shrink-0">
                 <BotaoIcone
                   rotulo="Respostas rápidas"
                   ativo={mostrarRespostas}
@@ -737,8 +739,9 @@ export function PainelConversa({
                     void enviar();
                   }
                 }}
-                placeholder="Escreva sua mensagem…  (Enter envia, Shift+Enter quebra linha)"
-                className="max-h-40 min-h-11 flex-1 resize-none rounded-lg border border-[var(--borda)] bg-[var(--superficie)] px-3 py-2.5 text-sm placeholder:text-[var(--texto-3)] focus:border-[var(--primaria)]"
+                placeholder="Escreva sua mensagem…"
+                title="Enter envia · Shift+Enter quebra linha"
+                className="placeholder-uma-linha max-h-40 min-h-11 w-full min-w-0 flex-1 resize-none rounded-lg border border-[var(--borda)] bg-[var(--superficie)] px-3 py-2.5 text-sm placeholder:text-[var(--texto-3)] focus:border-[var(--primaria)]"
               />
 
               <Botao
@@ -905,7 +908,7 @@ function BotaoIcone({
       aria-pressed={ativo}
       disabled={carregando}
       className={cn(
-        "flex size-11 items-center justify-center rounded-lg transition-colors",
+        "flex size-10 shrink-0 items-center justify-center rounded-lg transition-colors sm:size-11",
         ativo
           ? "bg-[var(--primaria)]/12 text-[var(--primaria)]"
           : "text-[var(--texto-2)] hover:bg-[var(--superficie-2)] hover:text-[var(--texto)]",

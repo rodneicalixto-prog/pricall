@@ -372,7 +372,8 @@ export async function seedDemo(options: { reset?: boolean } = {}): Promise<SeedR
     .insert(contacts)
     .values(
       CONTACT_NAMES.map((name, index) => {
-        const phone = `5511${String(97000000 + index * 137).padStart(9, "0")}`;
+        // 55 + DDD 11 + 9 + 8 dígitos = celular válido no formato brasileiro.
+        const phone = `55119${String(70000000 + index * 137).padStart(8, "0")}`;
         return {
           organizationId,
           whatsappId: phone,

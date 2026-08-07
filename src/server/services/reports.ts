@@ -91,6 +91,8 @@ export async function getDashboard(auth: AuthContext) {
     .from(conversations)
     .where(and(...base, gte(conversations.createdAt, daysAgo(30))));
 
+  // Conta apenas quem participa do atendimento — o administrador fica de fora
+  // da fila, então não deve entrar no indicador de "vendedores online".
   const onlineSellers = Number(
     await db.$count(
       users,
@@ -98,6 +100,7 @@ export async function getDashboard(auth: AuthContext) {
         eq(users.organizationId, auth.organizationId),
         eq(users.isActive, true),
         eq(users.availabilityStatus, "online"),
+        inArray(users.role, ["seller", "supervisor"]),
       ),
     ),
   );

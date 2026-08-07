@@ -14,7 +14,7 @@ import { api } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { Botao, EstadoVazio, Etiqueta } from "@/components/ui";
 import { useSessao } from "@/components/app/sessao";
-import { CabecalhoApp, SeloDemonstracao } from "@/components/app/navegacao";
+import { CabecalhoApp } from "@/components/app/navegacao";
 import { ListaConversas, type FiltrosLista } from "./lista-conversas";
 import { PainelConversa } from "./painel-conversa";
 import { PainelDadosContato } from "./painel-contato";
@@ -114,7 +114,6 @@ export function CentralAtendimento({
           className="hidden w-56 shrink-0 flex-col overflow-y-auto border-r border-[var(--borda)] bg-[var(--superficie)] p-3 xl:flex"
           aria-label="Filas de atendimento"
         >
-          {organizacao.demoMode && <SeloDemonstracao className="mb-3" />}
           <ListaFilas
             fila={filtros.fila}
             aoSelecionar={(fila) => setFiltros((f) => ({ ...f, fila }))}
@@ -186,7 +185,7 @@ export function CentralAtendimento({
         </div>
 
         {/* Coluna 3 — conversa */}
-        <div className={cn("min-w-0 flex-1", !selecionada && "hidden lg:flex")}>
+        <div className={cn("flex min-w-0 flex-1", !selecionada && "hidden lg:flex")}>
           {selecionada ? (
             <PainelConversa
               conversaId={selecionada}
