@@ -1,0 +1,16 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "regions": ["gru1"],
+  "crons": [
+    {
+      "path": "/api/jobs",
+      "schedule": "*/5 * * * *"
+    }
+  ],
+  "functions": {
+    "src/app/api/realtime/route.ts": { "maxDuration": 60 },
+    "src/app/api/webhooks/whatsapp/route.ts": { "maxDuration": 30 },
+    "src/app/api/jobs/route.ts": { "maxDuration": 60 }
+  }
+}

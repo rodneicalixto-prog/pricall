@@ -26,6 +26,8 @@ const EVENTOS = [
   "conversation.assigned",
   "conversation.closed",
   "message.created",
+  // Revalida após uma queda do canal (comum em serverless).
+  "realtime.reconnected",
 ];
 
 export type FiltrosLista = {

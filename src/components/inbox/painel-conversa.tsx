@@ -55,8 +55,17 @@ const EMOJIS = [
   "🕐", "📍", "🎯", "⭐",
 ];
 
-const EVENTOS_MENSAGEM = ["message.created", "message.status"];
-const EVENTOS_CONVERSA = ["conversation.updated", "conversation.assigned", "conversation.closed"];
+const EVENTOS_MENSAGEM = [
+  "message.created",
+  "message.status",
+  "realtime.reconnected",
+];
+const EVENTOS_CONVERSA = [
+  "conversation.updated",
+  "conversation.assigned",
+  "conversation.closed",
+  "realtime.reconnected",
+];
 const EVENTOS_PRESENCA = ["presence.updated"];
 
 export function PainelConversa({

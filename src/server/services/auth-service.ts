@@ -371,7 +371,12 @@ export async function requestPasswordReset(email: string): Promise<void> {
   const normalized = email.trim().toLowerCase();
 
   const rows = await db
-    .select({ id: users.id, organizationId: users.organizationId, isActive: users.isActive })
+    .select({
+      id: users.id,
+      name: users.name,
+      organizationId: users.organizationId,
+      isActive: users.isActive,
+    })
     .from(users)
     .where(sql`lower(${users.email}) = ${normalized}`)
     .limit(1);
@@ -394,10 +399,11 @@ export async function requestPasswordReset(email: string): Promise<void> {
   });
 
   const link = `${env.appUrl}/redefinir-senha?token=${token}`;
-  // TODO(integração de e-mail): enviar `link` por e-mail transacional.
-  console.info(
-    `[pricall] link de recuperação de senha gerado para ${normalized}: ${link}`,
-  );
+  const { emailRecuperacaoSenha, sendMail } = await import("@/modules/mail");
+
+  // Falha de e-mail não muda a resposta ao usuário: manter o retorno idêntico
+  // exista ou não a conta é o que evita enumeração de e-mails cadastrados.
+  await sendMail({ ...emailRecuperacaoSenha(link, user.name), to: normalized });
 }
 
 export async function resetPassword(token: string, newPassword: string) {

@@ -23,7 +23,7 @@ type Notificacao = {
   createdAt: string;
 };
 
-const EVENTOS = ["notification.created"];
+const EVENTOS = ["notification.created", "realtime.reconnected"];
 
 export function SinoNotificacoes() {
   const { preferencias } = useSessao();

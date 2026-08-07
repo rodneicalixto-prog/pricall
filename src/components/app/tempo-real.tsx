@@ -68,6 +68,7 @@ export function ProvedorTempoReal({ children }: { children: ReactNode }) {
   const [conectado, setConectado] = useState(false);
   const [online, setOnline] = useState(true);
   const ouvintes = useRef(new Set<Ouvinte>());
+  const jaConectouAlgumaVez = useRef(false);
 
   const assinar = useCallback((ouvinte: Ouvinte) => {
     ouvintes.current.add(ouvinte);
@@ -98,8 +99,21 @@ export function ProvedorTempoReal({ children }: { children: ReactNode }) {
       fonte = new EventSource("/api/realtime");
 
       fonte.onopen = () => {
+        const reconexao = tentativa > 0 || jaConectouAlgumaVez.current;
         tentativa = 0;
+        jaConectouAlgumaVez.current = true;
         setConectado(true);
+
+        /**
+         * Em serverless a conexão é cortada periodicamente. Ao reconectar,
+         * qualquer evento publicado durante a queda foi perdido — então
+         * pedimos aos componentes que revalidem o que estão exibindo.
+         */
+        if (reconexao) {
+          for (const ouvinte of ouvintes.current) {
+            ouvinte({ type: "realtime.reconnected" });
+          }
+        }
       };
 
       fonte.onmessage = (evento) => {

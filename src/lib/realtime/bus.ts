@@ -127,9 +127,16 @@ async function attachPgBridge() {
   if (g.__pricallBus__!.pgBridgeReady) return;
   g.__pricallBus__!.pgBridgeReady = true;
 
+  // O LISTEN precisa de conexão direta; o pooler transacional não a mantém.
+  const url = env.databaseUrlDirect ?? env.databaseUrl;
+  if (!url) {
+    g.__pricallBus__!.pgBridgeReady = false;
+    return;
+  }
+
   try {
     const postgresModule = await import("postgres");
-    const client = postgresModule.default(env.databaseUrl!, { max: 1 });
+    const client = postgresModule.default(url, { max: 1 });
     await client.listen(CHANNEL, (payload: string) => {
       try {
         const envelope = JSON.parse(payload) as RealtimeEnvelope;

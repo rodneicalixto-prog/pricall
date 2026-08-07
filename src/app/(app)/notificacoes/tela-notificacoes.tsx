@@ -50,7 +50,10 @@ export function TelaNotificacoes() {
     void carregar();
   }, [carregar]);
 
-  useEventoTempoReal(["notification.created"], () => void carregar());
+  useEventoTempoReal(
+    ["notification.created", "realtime.reconnected"],
+    () => void carregar(),
+  );
 
   async function marcarTodas() {
     await api("/api/notifications", { method: "POST", json: { ids: "all" } });

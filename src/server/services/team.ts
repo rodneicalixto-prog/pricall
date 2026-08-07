@@ -354,7 +354,7 @@ export async function resetUserPassword(auth: AuthContext, userId: string) {
   const db = await getDb();
 
   const [target] = await db
-    .select({ id: users.id })
+    .select({ id: users.id, name: users.name, email: users.email })
     .from(users)
     .where(and(eq(users.id, userId), eq(users.organizationId, auth.organizationId)))
     .limit(1);
@@ -367,15 +367,24 @@ export async function resetUserPassword(auth: AuthContext, userId: string) {
     .where(eq(users.id, userId));
   await revokeAllSessions(userId);
 
+  const { emailSenhaRedefinida, sendMail } = await import("@/modules/mail");
+  const envio = await sendMail({
+    ...emailSenhaRedefinida(target.name, temporaryPassword),
+    to: target.email,
+  });
+
   await recordAudit({
     organizationId: auth.organizationId,
     userId: auth.userId,
     action: "user.password_reset",
     entityType: "user",
     entityId: userId,
+    metadata: { emailEnviado: envio.ok },
   });
 
-  return { temporaryPassword };
+  // A senha continua sendo devolvida na resposta: é exibida uma única vez na
+  // tela, o que mantém o fluxo funcional mesmo sem provedor de e-mail.
+  return { temporaryPassword, emailSent: envio.ok };
 }
 
 function generateTemporaryPassword(): string {
@@ -529,10 +538,18 @@ export async function inviteUser(
   });
 
   const link = `${env.appUrl}/convite?token=${token}`;
-  // TODO(integração de e-mail): enviar o convite por e-mail transacional.
-  console.info(`[pricall] convite gerado para ${email}: ${link}`);
+  const { emailConvite, sendMail } = await import("@/modules/mail");
+  const { getOrganization } = await import("./organization");
+  const organizacao = await getOrganization(auth.organizationId);
 
-  return { invitation, link };
+  const envio = await sendMail({
+    ...emailConvite(link, input.name.trim(), organizacao.name, auth.name),
+    to: email,
+  });
+
+  // O link volta na resposta: com e-mail em modo `log`, ou se o envio falhar,
+  // o administrador ainda consegue repassá-lo manualmente.
+  return { invitation, link, emailSent: envio.ok };
 }
 
 export async function acceptInvitation(

@@ -42,6 +42,16 @@ export const env = {
     | "postgres"
     | "pglite",
   databaseUrl: optional("DATABASE_URL"),
+  /**
+   * Conexão direta (sem pooler) usada pelo LISTEN/NOTIFY do tempo real.
+   * Pooler em transaction mode — Supabase na porta 6543, Neon "pooled" —
+   * descarta a subscrição, então o canal precisa da porta 5432.
+   * Sem esta variável, o tempo real fica restrito à própria instância.
+   */
+  databaseUrlDirect:
+    optional("DATABASE_URL_UNPOOLED") ??
+    optional("DIRECT_URL") ??
+    optional("DATABASE_URL_DIRECT"),
   pgliteDataDir: optional("PGLITE_DATA_DIR") ?? ".pgdata",
 
   /** Chave usada para derivar/assinar valores de sessão. */
@@ -85,6 +95,28 @@ export const env = {
     maxTokens: int("AI_MAX_TOKENS", 700),
   },
 
+  /* ---------------- E-mail transacional ---------------- */
+  mail: {
+    /**
+     * `log`    — imprime no servidor, não envia nada (padrão em dev).
+     * `smtp`   — qualquer servidor SMTP, inclusive Gmail com Senha de App.
+     * `resend` — API do Resend, para volume maior.
+     */
+    provider: (optional("MAIL_PROVIDER") ?? "log") as "log" | "smtp" | "resend",
+    from: optional("MAIL_FROM") ?? "PRICALL <nao-responda@localhost>",
+    replyTo: optional("MAIL_REPLY_TO"),
+    smtp: {
+      host: optional("MAIL_SMTP_HOST"),
+      port: int("MAIL_SMTP_PORT", 587),
+      user: optional("MAIL_SMTP_USER"),
+      password: optional("MAIL_SMTP_PASSWORD"),
+      secure: optional("MAIL_SMTP_SECURE")
+        ? bool("MAIL_SMTP_SECURE")
+        : undefined,
+    },
+    resendApiKey: optional("RESEND_API_KEY"),
+  },
+
   /* ---------------- Observabilidade ---------------- */
   sentryDsn: optional("SENTRY_DSN"),
   logLevel: optional("LOG_LEVEL") ?? "info",
@@ -115,6 +147,12 @@ export function assertProductionEnv(): string[] {
     problems.push(
       "DATABASE_URL não configurado. PGlite não deve ser usado em produção.",
     );
+  }
+  if (env.mail.provider === "smtp" && !env.mail.smtp.password) {
+    problems.push("MAIL_PROVIDER=smtp exige MAIL_SMTP_PASSWORD.");
+  }
+  if (env.mail.provider === "resend" && !env.mail.resendApiKey) {
+    problems.push("MAIL_PROVIDER=resend exige RESEND_API_KEY.");
   }
   return problems;
 }

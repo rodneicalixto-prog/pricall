@@ -254,7 +254,11 @@ sem enxergar as conversas dos próprios vendedores.
 
 ## Deploy
 
-### Checklist
+Para **Vercel + Evolution API + Gmail** há um guia passo a passo em
+[`docs/deploy-vercel.md`](docs/deploy-vercel.md), com as variáveis prontas e
+as limitações do serverless explicadas.
+
+### Checklist genérico
 
 1. Provisione um PostgreSQL (Supabase, RDS, Neon…).
 2. Configure as variáveis do `.env.example`. Em produção são obrigatórios
@@ -347,15 +351,15 @@ A arquitetura em módulos comporta esses domínios sem reescrita.
 
 ### Pontos que exigem configuração antes de produção
 
-- **E-mail transacional.** Convites e recuperação de senha geram o link, mas
-  o envio ainda é `console.info`. Ponto de integração marcado com `TODO` em
-  `src/server/services/auth-service.ts` e `team.ts`.
 - **Armazenamento de mídia.** O envio de anexos está validado (tipo, tamanho,
   MIME) e o recebimento é registrado, mas falta plugar um bucket com URL
   assinada para o upload pela interface.
 - **MFA.** As colunas existem em `users`; o fluxo de ativação não foi
   implementado.
 - **Sentry.** A variável está prevista; a instrumentação não foi adicionada.
+- **Rate limit em memória.** Suficiente para um processo. Em ambiente
+  serverless com várias instâncias, o limite efetivo fica mais frouxo — troque
+  o `store` de `src/lib/rate-limit.ts` por Redis mantendo a mesma assinatura.
 
 ---
 

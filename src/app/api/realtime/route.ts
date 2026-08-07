@@ -8,6 +8,15 @@ import { getAuthContext } from "@/lib/auth/session";
 import { subscribe } from "@/lib/realtime/bus";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
+/**
+ * Em plataformas serverless a função tem duração máxima. O cliente reconecta
+ * sozinho (com backoff) e revalida ao reconectar, então o corte é transparente
+ * — mas declarar o limite evita que o corte aconteça em momento arbitrário.
+ * Hobby aceita até 60 s; planos pagos aceitam mais.
+ */
+export const maxDuration = 60;
 
 export async function GET(request: Request) {
   const auth = await getAuthContext();
@@ -44,7 +53,7 @@ export async function GET(request: Request) {
       });
 
       // Mantém a conexão viva atrás de proxies que cortam ociosidade.
-      heartbeat = setInterval(() => send({ type: "heartbeat" }), 25_000);
+      heartbeat = setInterval(() => send({ type: "heartbeat" }), 15_000);
 
       request.signal.addEventListener("abort", () => {
         cleanup();

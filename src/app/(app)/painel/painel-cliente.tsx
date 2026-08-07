@@ -58,6 +58,7 @@ const EVENTOS = [
   "conversation.updated",
   "conversation.closed",
   "conversation.assigned",
+  "realtime.reconnected",
 ];
 
 export function PainelCliente() {
