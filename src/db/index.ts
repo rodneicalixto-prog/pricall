@@ -33,9 +33,20 @@ async function createDatabase(): Promise<Database> {
       import("postgres"),
     ]);
     const postgres = postgresModule.default;
+    /**
+     * Em serverless cada invocação vive isolada e atende uma requisição por
+     * vez, então um pool local grande não acelera nada — só multiplica
+     * conexões no banco. Com dez instâncias mornas e `max: 10`, são cem
+     * conexões disputando um pooler que aceita bem menos, e o sintoma é
+     * `EMAXCONNSESSION` derrubando até a consulta de sessão no login.
+     *
+     * Quem faz o trabalho de pool é o pooler do Supabase. Aqui basta uma
+     * conexão por instância, devolvida rápido.
+     */
     const client = postgres(env.databaseUrl!, {
-      max: env.isProduction ? 10 : 3,
-      idle_timeout: 20,
+      max: env.isProduction ? 1 : 3,
+      idle_timeout: env.isProduction ? 5 : 20,
+      max_lifetime: 60 * 5,
       connect_timeout: 15,
       prepare: false,
     });

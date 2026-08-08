@@ -333,9 +333,20 @@ que o configurado. Para uso interno não muda nada; quando virar produção sér
 troque `src/lib/rate-limit.ts` por Redis mantendo a mesma assinatura — nenhum
 chamador precisa mudar.
 
-**Conexões diretas do banco.** Cada aba aberta com tempo real segura uma
-conexão direta para o `LISTEN`. O Supabase gratuito dá cerca de 60. Equipe
-pequena sobra; com 50 pessoas simultâneas, é hora de olhar isso.
+**Conexões do banco — o limite real é 15.** O *session pooler* do Supabase
+aceita 15 clientes simultâneos, não as ~60 da conexão direta. Estourar esse
+número derruba **tudo**, inclusive o login: a consulta da sessão também precisa
+de conexão, e o erro que aparece é `EMAXCONNSESSION`.
+
+Por isso, em produção, o pool local é de **uma conexão por instância**. Parece
+pouco, mas em serverless cada invocação atende uma requisição por vez — quem
+faz o trabalho de pool é o pooler do Supabase. Um `max` maior aqui não acelera
+nada e multiplica conexões: dez instâncias mornas com `max: 10` são cem
+clientes disputando quinze vagas.
+
+Se o erro voltar, confira antes de mexer em código: as duas URLs precisam ter
+portas **diferentes** (6543 e 5432). Com as duas em 5432, todo o tráfego cai no
+session pooler e as quinze vagas acabam na hora.
 
 ---
 
