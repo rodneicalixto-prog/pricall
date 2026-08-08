@@ -28,11 +28,15 @@ select
   (select count(*) from pg_policies where schemaname = 'public') as politicas;
 ```
 
-Esperado: **29 tabelas**, **29 com RLS**, **29 políticas**.
+Esperado: **28 / 28 / 28**.
 
-Se `tabelas` vier 29 mas `com_rls` vier menos, o script rodou pela metade — a
-parte do RLS fica no fim do arquivo. Nesse caso vale recomeçar limpo, conforme
+Se `com_rls` vier menor que `tabelas`, o script parou no meio — o Row Level
+Security é a última parte do arquivo, e tabela sem ele fica sem isolamento
+entre empresas no banco. Nesse caso vale recomeçar limpo, conforme
 [a última seção do guia do Supabase](./setup-supabase.md#se-precisar-recomeçar).
+
+(A `__drizzle_migrations` também é criada, mas no schema `drizzle` — por isso
+não entra nessa conta.)
 
 ---
 

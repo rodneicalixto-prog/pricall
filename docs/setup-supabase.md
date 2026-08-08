@@ -35,10 +35,27 @@ quando a tabela já existe.
 Ainda no SQL Editor, rode:
 
 ```sql
-select count(*) as tabelas from pg_tables where schemaname = 'public';
+select
+  (select count(*) from pg_tables where schemaname = 'public') as tabelas,
+  (select count(*) from pg_tables where schemaname = 'public' and rowsecurity) as com_rls,
+  (select count(*) from pg_policies where schemaname = 'public') as politicas;
 ```
 
-Resultado esperado: **29**.
+Resultado esperado: **28 / 28 / 28**.
+
+O que cada número diz:
+
+- **tabelas** menor que 28 → o script não terminou
+- **com_rls** menor que **tabelas** → parou antes do fim; o Row Level Security
+  é a última parte do arquivo, e uma tabela sem ele não tem isolamento entre
+  empresas no banco
+
+Os três iguais é o sinal de que rodou inteiro.
+
+> O script também cria a tabela `__drizzle_migrations`, mas no schema
+> `drizzle` — por isso ela não entra nessa conta. Ela é o registro de qual
+> migração já foi aplicada; sem ela, um `npm run db:migrate` futuro tentaria
+> criar tudo de novo e falharia.
 
 Em **Table Editor** você deve ver `organizations`, `users`, `conversations`,
 `messages` e as demais.
