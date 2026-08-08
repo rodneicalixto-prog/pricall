@@ -8,7 +8,7 @@ import type { AuthContext } from "@/lib/auth/session";
 import { can, requirePermission } from "@/lib/auth/rbac";
 import { recordAudit } from "@/lib/audit";
 import { errors } from "@/lib/errors";
-import { formatPhone, maskPhone } from "@/lib/phone";
+import { formatPhone, isValidPhone, maskPhone, normalizePhone } from "@/lib/phone";
 import { getOrganizationSettings } from "./organization";
 
 export async function getContactPanel(auth: AuthContext, contactId: string) {
@@ -192,4 +192,241 @@ export async function recordConsent(
   });
 
   return row;
+}
+
+/* ------------------------------------------------------------------ *
+ * Agenda de contatos
+ *
+ * Os contatos já eram gravados a cada mensagem recebida, mas não havia onde
+ * vê-los nem como puxar conversa com alguém que já escreveu antes — só dava
+ * para responder a quem chegasse primeiro.
+ * ------------------------------------------------------------------ */
+
+export type ContactListItem = {
+  id: string;
+  name: string;
+  phone: string;
+  phoneFormatted: string;
+  isBlocked: boolean;
+  lastContactAt: Date | null;
+  openConversationId: string | null;
+};
+
+export async function listContacts(
+  auth: AuthContext,
+  input: { search?: string; limit?: number; offset?: number } = {},
+): Promise<{ items: ContactListItem[]; total: number }> {
+  const db = await getDb();
+  const settings = await getOrganizationSettings(auth.organizationId);
+  const mask =
+    settings.maskPhoneForSellers === true && !can(auth, "contacts.view_full_phone");
+
+  const limit = Math.min(input.limit ?? 50, 100);
+  const offset = input.offset ?? 0;
+  const termo = input.search?.trim();
+
+  // Busca por nome ou por telefone, ignorando a formatação que a pessoa digitar.
+  const filtro = termo
+    ? and(
+        eq(contacts.organizationId, auth.organizationId),
+        sql`(${contacts.name} ilike ${"%" + termo + "%"} or ${contacts.phone} like ${
+          "%" + termo.replace(/\D/g, "") + "%"
+        })`,
+      )
+    : eq(contacts.organizationId, auth.organizationId);
+
+  const rows = await db
+    .select({
+      id: contacts.id,
+      name: contacts.name,
+      phone: contacts.phone,
+      isBlocked: contacts.isBlocked,
+      lastContactAt: contacts.lastContactAt,
+      openConversationId: sql<string | null>`(
+        select c.id from ${conversations} c
+        where c.contact_id = ${contacts.id} and c.status <> 'closed'
+        order by c.last_message_at desc nulls last
+        limit 1
+      )`,
+    })
+    .from(contacts)
+    .where(filtro)
+    .orderBy(desc(contacts.lastContactAt))
+    .limit(limit)
+    .offset(offset);
+
+  const [{ total }] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(contacts)
+    .where(filtro);
+
+  return {
+    total: Number(total),
+    items: rows.map((row) => ({
+      ...row,
+      phone: mask ? maskPhone(row.phone) : row.phone,
+      phoneFormatted: mask ? maskPhone(row.phone) : formatPhone(row.phone),
+    })),
+  };
+}
+
+export async function createContact(
+  auth: AuthContext,
+  input: { name: string; phone: string; email?: string; notes?: string },
+) {
+  const db = await getDb();
+  const phone = normalizePhone(input.phone);
+  if (!isValidPhone(phone)) {
+    throw errors.validation("Telefone inválido. Use DDD + número.");
+  }
+
+  const whatsappId = `${phone}@s.whatsapp.net`;
+
+  const [existing] = await db
+    .select({ id: contacts.id, name: contacts.name })
+    .from(contacts)
+    .where(
+      and(
+        eq(contacts.organizationId, auth.organizationId),
+        eq(contacts.whatsappId, whatsappId),
+      ),
+    )
+    .limit(1);
+
+  if (existing) {
+    throw errors.conflict(`Este número já está na agenda como "${existing.name}".`);
+  }
+
+  const [contact] = await db
+    .insert(contacts)
+    .values({
+      organizationId: auth.organizationId,
+      whatsappId,
+      phone,
+      name: input.name.trim(),
+      email: input.email?.trim() || null,
+      notes: input.notes?.trim() || null,
+      source: "manual",
+    })
+    .returning();
+
+  await recordAudit({
+    organizationId: auth.organizationId,
+    userId: auth.userId,
+    action: "contact.created",
+    entityType: "contact",
+    entityId: contact.id,
+    metadata: { origem: "cadastro manual" },
+  });
+
+  return contact;
+}
+
+/**
+ * Abre (ou reaproveita) uma conversa com um contato, para quem quer puxar
+ * assunto em vez de esperar o cliente escrever.
+ *
+ * Não envia mensagem: devolve a conversa pronta, já atribuída a quem pediu.
+ * O envio segue pelo caminho normal, com as mesmas regras de janela de
+ * atendimento e de bloqueio.
+ */
+export async function startConversation(
+  auth: AuthContext,
+  input: { contactId: string; connectionId?: string },
+): Promise<{ conversationId: string; created: boolean }> {
+  const db = await getDb();
+
+  const [contact] = await db
+    .select()
+    .from(contacts)
+    .where(
+      and(
+        eq(contacts.id, input.contactId),
+        eq(contacts.organizationId, auth.organizationId),
+      ),
+    )
+    .limit(1);
+  if (!contact) throw errors.notFound("Contato não encontrado.");
+  if (contact.isBlocked) {
+    throw errors.validation("Este contato está bloqueado. Desbloqueie para conversar.");
+  }
+
+  // Conversa aberta com este contato: entra nela em vez de criar outra.
+  const [aberta] = await db
+    .select({ id: conversations.id })
+    .from(conversations)
+    .where(
+      and(
+        eq(conversations.organizationId, auth.organizationId),
+        eq(conversations.contactId, contact.id),
+        sql`${conversations.status} <> 'closed'`,
+      ),
+    )
+    .orderBy(sql`${conversations.lastMessageAt} desc nulls last`)
+    .limit(1);
+
+  if (aberta) return { conversationId: aberta.id, created: false };
+
+  const { whatsappConnections } = await import("@/db/schema");
+  const [connection] = await db
+    .select({ id: whatsappConnections.id, teamId: whatsappConnections.teamId })
+    .from(whatsappConnections)
+    .where(
+      and(
+        eq(whatsappConnections.organizationId, auth.organizationId),
+        input.connectionId
+          ? eq(whatsappConnections.id, input.connectionId)
+          : sql`${whatsappConnections.status} <> 'disabled'`,
+      ),
+    )
+    .orderBy(desc(whatsappConnections.isDefault))
+    .limit(1);
+
+  if (!connection) {
+    throw errors.validation(
+      "Nenhum número de WhatsApp disponível para iniciar a conversa.",
+    );
+  }
+
+  const agora = new Date();
+  const [conversa] = await db
+    .insert(conversations)
+    .values({
+      organizationId: auth.organizationId,
+      contactId: contact.id,
+      whatsappConnectionId: connection.id,
+      // Quem abre já assume: foi uma decisão de atender, não uma fila.
+      assignedUserId: auth.userId,
+      assignedTeamId: connection.teamId ?? null,
+      assignedAt: agora,
+      status: "in_progress",
+      lastMessageAt: agora,
+    })
+    .returning({ id: conversations.id });
+
+  await recordAudit({
+    organizationId: auth.organizationId,
+    userId: auth.userId,
+    action: "conversation.started",
+    entityType: "conversation",
+    entityId: conversa.id,
+    metadata: { origem: "iniciada pela agenda", contato: contact.name },
+  });
+
+  const { recordConversationEvent } = await import("@/lib/audit");
+  await recordConversationEvent({
+    organizationId: auth.organizationId,
+    conversationId: conversa.id,
+    eventType: "created",
+    actorUserId: auth.userId,
+    newValue: { origem: "iniciada pela agenda" },
+  });
+
+  const { publish } = await import("@/lib/realtime/bus");
+  await publish(auth.organizationId, {
+    type: "conversation.created",
+    conversationId: conversa.id,
+  });
+
+  return { conversationId: conversa.id, created: true };
 }

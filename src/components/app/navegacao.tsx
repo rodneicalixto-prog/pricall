@@ -12,6 +12,7 @@ import {
   BarChart3,
   CalendarDays,
   Inbox,
+  BookUser,
   KanbanSquare,
   LayoutDashboard,
   LogOut,
@@ -39,6 +40,7 @@ type ItemNavegacao = {
 const ITENS: ItemNavegacao[] = [
   { href: "/painel", rotulo: "Painel", Icone: LayoutDashboard, mobile: true },
   { href: "/atendimentos", rotulo: "Atendimentos", Icone: Inbox, mobile: true },
+  { href: "/contatos", rotulo: "Contatos", Icone: BookUser, mobile: true },
   { href: "/kanban", rotulo: "Kanban", Icone: KanbanSquare, mobile: true },
   { href: "/agenda", rotulo: "Agenda", Icone: CalendarDays, mobile: true },
   {
