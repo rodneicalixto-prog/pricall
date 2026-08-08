@@ -9,11 +9,37 @@ para o próximo — se um falhar, não adianta continuar.
 | 1 | Criar as tabelas | Supabase | ✅ feito |
 | 2 | Conferir as tabelas | Supabase | ✅ 28/28/28 |
 | 3 | Apontar o Vercel para a branch certa | Vercel | ✅ feito |
-| 4 | Cadastrar as variáveis de ambiente | Vercel | ✅ as seis |
-| 5 | Deploy e conferir o boot | Vercel | ⬜ |
-| 6 | Criar a empresa e o primeiro usuário | Aplicação | ⬜ |
+| 4 | Cadastrar as variáveis de ambiente | Vercel | ⚠️ falta `SESSION_SECRET` |
+| 5 | Deploy e conferir o boot | Vercel | ✅ no ar, banco conectado |
+| 6 | Criar a empresa e o primeiro usuário | Aplicação | 🔒 travado pelo passo 4 |
 | 7 | Conectar a Evolution | Evolution + aplicação | ⬜ |
 | 8 | Mensagem de ponta a ponta | Celular | ⬜ |
+
+**No ar:** <https://pricall.vercel.app/entrar>
+
+O boot confirmou o banco:
+
+```
+[pricall] iniciado · ambiente=production · banco=postgres · e-mail=log · ia=mock · sentry=desligado
+```
+
+`banco=postgres` é o Supabase respondendo. Falta só o `SESSION_SECRET` — sem
+ele o login não funciona, porque é a chave que assina as sessões.
+
+### Consertar o SESSION_SECRET
+
+1. **Settings › Environment Variables**, ache `SESSION_SECRET`
+2. Três pontinhos à direita › **Edit**
+3. Gere um valor no PowerShell:
+   ```powershell
+   -join ((48..57)+(65..90)+(97..122) | Get-Random -Count 48 | % {[char]$_})
+   ```
+4. Cole no campo **Value** e salve
+5. **Deployments › Redeploy** no deploy mais recente
+
+O Redeploy é seguro a partir de agora: o último deploy já é o da branch certa,
+então reconstruir o mesmo commit é exatamente o que se quer. (Antes disso ele
+reconstruía o commit da `main`, que não tem código — ver a seção 5.)
 
 ---
 
@@ -148,15 +174,38 @@ telefone e conteúdo de mensagem viram `[oculto]`.
 
 ## 5. Deploy e conferir o boot
 
-**Não use o botão Redeploy aqui.** Ele reconstrói o *mesmo commit* do deploy
-anterior — inclusive a branch antiga. Trocar a Production Branch no passo 3 só
-passa a valer no próximo commit novo, então um Redeploy logo depois recompila
-exatamente o que você acabou de deixar de querer, agora com as variáveis certas
-apontando para o código errado. O deploy fica verde e o site continua sem a
-aplicação.
-
-O que dispara o deploy certo é **um commit novo na branch de produção**. Basta
+O que dispara o deploy é **um commit novo na branch de produção**. Basta
 qualquer push para `claude/pricall-whatsapp-central-6g7i3a`.
+
+**Não use o botão Redeploy logo depois de trocar a branch no passo 3.** Ele
+reconstrói o *mesmo commit* do deploy anterior — que ainda é o da branch
+antiga. O deploy fica verde e o site continua sem a aplicação. Depois que
+existir ao menos um deploy da branch certa, o Redeploy volta a ser útil: é
+assim que se aplica uma variável de ambiente nova sem precisar de commit.
+
+### Se o deploy simplesmente não aparecer
+
+Esta armadilha custou horas de diagnóstico, então fica registrada.
+
+O Vercel valida o `vercel.json` **no momento de criar o deployment**. Se o
+arquivo pedir algo acima do plano, ele **recusa o deploy inteiro — e a recusa é
+silenciosa**: nada aparece na lista de Deployments, nem como falha. A impressão
+é de que os pushes pararam de chegar, e o instinto manda ir investigar a
+conexão com o GitHub. É o lugar errado.
+
+No plano Hobby, dois campos derrubam o deploy:
+
+| Campo | Por quê |
+| ----- | ------- |
+| `"regions"` | escolher região é recurso do plano Pro |
+| `"crons"` mais frequente que diário | Hobby aceita no máximo 1× por dia |
+
+O sintoma que identifica esse caso: **um Deploy Hook responde `201` com
+`state: PENDING` e nunca vira deploy**. A requisição foi aceita, a validação
+recusou depois. Se isso acontecer, o problema está no `vercel.json`, não no
+GitHub.
+
+### Conferir o boot
 
 Em **Logs**, procure a linha:
 
@@ -174,6 +223,10 @@ O que cada pedaço denuncia:
 Um aviso sobre `DATABASE_URL_UNPOOLED` ausente não impede nada: significa só
 que a mensagem nova demora alguns segundos a mais para aparecer na tela do
 colega.
+
+Vale reparar que essa linha aparece **na primeira requisição** que acorda a
+função, não no fim do build. Se os Logs estiverem vazios, abra qualquer página
+do site e olhe de novo.
 
 ---
 
