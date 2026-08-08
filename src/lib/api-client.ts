@@ -39,9 +39,19 @@ export async function api<T>(
       credentials: "same-origin",
     });
   } catch {
+    /**
+     * `fetch` rejeita por vários motivos, e só um deles é falta de internet:
+     * o servidor pode não ter respondido, a função pode ter estourado o tempo
+     * limite, o endereço pode estar errado. Culpar a rede do usuário em todos
+     * os casos manda ele investigar o lugar errado — então só dizemos
+     * "offline" quando o navegador confirma que está.
+     */
+    const semRede = typeof navigator !== "undefined" && !navigator.onLine;
     throw new ApiError(
-      "offline",
-      "Você está offline. As atualizações serão retomadas quando a conexão voltar.",
+      semRede ? "offline" : "unreachable",
+      semRede
+        ? "Você está offline. As atualizações serão retomadas quando a conexão voltar."
+        : "O servidor não respondeu. Se a operação depende de um serviço externo, confira se ele está no ar e se o endereço está correto.",
       0,
     );
   }
