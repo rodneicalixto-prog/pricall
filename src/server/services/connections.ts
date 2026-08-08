@@ -10,6 +10,7 @@ import {
   conversations,
   integrationEvents,
   messages,
+  organizations,
   teams,
   users,
   whatsappConnections,
@@ -274,6 +275,30 @@ export async function testConnection(auth: AuthContext, connectionId: string) {
       updatedAt: new Date(),
     })
     .where(eq(whatsappConnections.id, connectionId));
+
+  /**
+   * Um número real conectado encerra a demonstração.
+   *
+   * O selo "Modo demonstração" avisa que nada na tela é de verdade — deixá-lo
+   * aceso depois que a central começou a atender cliente é pior do que não
+   * tê-lo: passa a mentir. Desligar aqui, e não num interruptor, evita
+   * depender de alguém lembrar.
+   */
+  if (check.ok && !connection.isDemo) {
+    await db
+      .update(organizations)
+      .set({
+        settings: sql`coalesce(${organizations.settings}, '{}'::jsonb) || '{"demoMode": false}'::jsonb`,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(organizations.id, auth.organizationId),
+          // Só escreve quando ainda está ligado, para não sujar o updatedAt.
+          sql`coalesce(${organizations.settings} ->> 'demoMode', 'false') = 'true'`,
+        ),
+      );
+  }
 
   await recordAudit({
     organizationId: auth.organizationId,

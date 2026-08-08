@@ -244,6 +244,9 @@ function SecaoEmpresa({
   const [nome, setNome] = useState(config.name);
   const [segmento, setSegmento] = useState(config.segment ?? "");
   const [fuso, setFuso] = useState(config.timezone);
+  const [demonstracao, setDemonstracao] = useState(
+    config.settings.demoMode ?? false,
+  );
 
   return (
     <Cartao className="max-w-2xl">
@@ -267,10 +270,37 @@ function SecaoEmpresa({
           <option value="America/Rio_Branco">Rio Branco (America/Rio_Branco)</option>
           <option value="America/Fortaleza">Fortaleza (America/Fortaleza)</option>
         </Selecao>
+
+        <div className="rounded-lg border border-[var(--borda)] p-3">
+          <label className="flex items-start gap-2.5 text-sm">
+            <input
+              type="checkbox"
+              checked={demonstracao}
+              onChange={(e) => setDemonstracao(e.target.checked)}
+              className="mt-0.5 size-4 shrink-0 rounded accent-[var(--primaria)]"
+            />
+            <span>
+              Modo demonstração
+              <span className="mt-0.5 block text-xs text-[var(--texto-2)]">
+                Exibe o selo laranja na lateral e libera o simulador de
+                conversas. Desligue quando a central passar a atender clientes
+                de verdade — o selo dá a entender que nada ali é real.
+              </span>
+            </span>
+          </label>
+        </div>
+
         <Botao
           className="self-start"
           carregando={salvando}
-          onClick={() => aoSalvar({ name: nome, segment: segmento, timezone: fuso })}
+          onClick={() =>
+            aoSalvar({
+              name: nome,
+              segment: segmento,
+              timezone: fuso,
+              settings: { ...config.settings, demoMode: demonstracao },
+            })
+          }
         >
           Salvar alterações
         </Botao>

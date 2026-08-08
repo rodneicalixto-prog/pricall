@@ -76,7 +76,13 @@ export async function registerOrganization(input: RegisterInput) {
       settings: {
         aiEnabled: true,
         aiSummaryEnabled: true,
-        demoMode: env.demoModeEnabled,
+        /**
+         * Em produção a empresa nasce fora do modo demonstração: quem cria uma
+         * conta no ar está começando a operar de verdade, e o selo laranja na
+         * lateral sugere que nada ali é real. Continua ligado em
+         * desenvolvimento, onde serve para o simulador de conversas.
+         */
+        demoMode: env.isProduction ? false : env.demoModeEnabled,
         slaFirstResponseMinutes: 10,
         slaStaleConversationMinutes: 30,
         assignOutsideBusinessHours: false,
