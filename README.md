@@ -277,6 +277,13 @@ Evolution, Gmail, limitações do serverless) e
 [`docs/setup-supabase.md`](docs/setup-supabase.md) (criação do banco pela
 interface, sem linha de comando).
 
+## Automação com n8n
+
+[`docs/n8n/`](docs/n8n/) traz um fluxo porteiro pronto para importar, que
+resolve o atrito entre a Evolution (uma URL de webhook por instância) e o n8n
+(uma URL por fluxo): um único fluxo recebe tudo, repassa ao PRICALL e
+distribui para o fluxo de cada departamento.
+
 ### Checklist genérico
 
 1. Provisione um PostgreSQL (Supabase, RDS, Neon…).

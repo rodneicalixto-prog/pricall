@@ -1,0 +1,297 @@
+{
+  "name": "PRICALL — Porteiro WhatsApp",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Porteiro do WhatsApp\n\nEsta é a **única** URL cadastrada na Evolution. Todo departamento entra por aqui.\n\nCada instância da Evolution (um número) cai num ramo do Switch, que chama o fluxo daquele departamento por **Execute Workflow** — assim os fluxos não precisam de webhook próprio.\n\nO repasse ao PRICALL sai em paralelo, antes de qualquer processamento: se um fluxo quebrar, o histórico da central continua completo.",
+        "height": 320,
+        "width": 380,
+        "color": 4
+      },
+      "id": "nota-visao",
+      "name": "Como funciona",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-460, -60]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "evolution",
+        "options": {}
+      },
+      "id": "entrada",
+      "name": "Evolution",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 100],
+      "webhookId": "porteiro-evolution"
+    },
+    {
+      "parameters": {
+        "content": "### Antes de ativar\n\n1. Copie a **Production URL** deste webhook\n2. Cadastre-a na Evolution, em cada instância\n3. Deixe **Webhook by Events** desligado\n4. Eventos: `MESSAGES_UPSERT`, `MESSAGES_UPDATE`, `SEND_MESSAGE`\n\nUse a **mesma URL** em todas as instâncias. O campo `instance` no corpo é o que separa os departamentos.",
+        "height": 260,
+        "width": 300,
+        "color": 5
+      },
+      "id": "nota-evolution",
+      "name": "Configurar na Evolution",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-60, -300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.PRICALL_WEBHOOK_URL || 'https://pricall.vercel.app/api/webhooks/whatsapp?token=COLE_O_TOKEN_AQUI' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "repassar",
+      "name": "Repassar ao PRICALL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, -40],
+      "onError": "continueRegularOutput",
+      "notesInFlow": true,
+      "notes": "Corpo original, sem alterar"
+    },
+    {
+      "parameters": {
+        "content": "### Repasse ao PRICALL\n\nManda o corpo **exatamente como veio**. Não altere `data.key.id`: é ele que garante a idempotência — reenvio vira duplicata descartada, não mensagem repetida.\n\n`neverError` e `onError: continue` são de propósito: se o PRICALL estiver fora do ar, o fluxo do departamento ainda roda.\n\nO token vai na URL. Guarde em `PRICALL_WEBHOOK_URL` nas variáveis do n8n em vez de deixá-lo aqui no JSON.",
+        "height": 300,
+        "width": 320,
+        "color": 3
+      },
+      "id": "nota-repasse",
+      "name": "Sobre o repasse",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [240, -380]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "e-resposta-propria",
+              "leftValue": "={{ $json.body.data.key.fromMe }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "resposta-propria",
+      "name": "Saiu do nosso número?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [260, 220]
+    },
+    {
+      "parameters": {
+        "content": "### A trava contra laço\n\nQuando um fluxo responde pela Evolution, a resposta volta como webhook com `fromMe: true`.\n\nSem esta verificação, o fluxo reage à própria resposta — e responde de novo, para sempre.\n\nO repasse ao PRICALL acontece mesmo assim: é bom que a central mostre o que o bot respondeu.",
+        "height": 260,
+        "width": 300,
+        "color": 2
+      },
+      "id": "nota-laco",
+      "name": "Por que verificar fromMe",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [240, 420]
+    },
+    {
+      "parameters": {},
+      "id": "nao-processa",
+      "name": "Não processar",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [520, 120]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "r-vendas",
+                    "leftValue": "={{ $json.body.instance }}",
+                    "rightValue": "pricall",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Vendas"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "r-suporte",
+                    "leftValue": "={{ $json.body.instance }}",
+                    "rightValue": "pricall-suporte",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Suporte"
+            }
+          ]
+        },
+        "looseTypeValidation": true,
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "Sem departamento"
+        }
+      },
+      "id": "departamento",
+      "name": "Qual departamento",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [520, 320]
+    },
+    {
+      "parameters": {
+        "content": "### Um ramo por departamento\n\nCada número tem sua instância na Evolution, então `instance` é o discriminador natural.\n\nPara acrescentar um departamento: duplique uma regra, troque o nome da instância e ligue a um novo **Execute Workflow**.\n\nA saída **Sem departamento** existe de propósito: instância nova cadastrada e esquecida aqui não some em silêncio — ela cai num ramo visível na execução.",
+        "height": 300,
+        "width": 320,
+        "color": 6
+      },
+      "id": "nota-switch",
+      "name": "Sobre o roteamento",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [500, 540]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list",
+          "cachedResultName": "Escolha o fluxo de Vendas"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "id": "fluxo-vendas",
+      "name": "Fluxo Vendas",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [800, 220]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list",
+          "cachedResultName": "Escolha o fluxo de Suporte"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "id": "fluxo-suporte",
+      "name": "Fluxo Suporte",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [800, 380]
+    },
+    {
+      "parameters": {},
+      "id": "sem-departamento",
+      "name": "Sem departamento",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [800, 520]
+    }
+  ],
+  "connections": {
+    "Evolution": {
+      "main": [
+        [
+          { "node": "Repassar ao PRICALL", "type": "main", "index": 0 },
+          { "node": "Saiu do nosso número?", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Saiu do nosso número?": {
+      "main": [
+        [{ "node": "Não processar", "type": "main", "index": 0 }],
+        [{ "node": "Qual departamento", "type": "main", "index": 0 }]
+      ]
+    },
+    "Qual departamento": {
+      "main": [
+        [{ "node": "Fluxo Vendas", "type": "main", "index": 0 }],
+        [{ "node": "Fluxo Suporte", "type": "main", "index": 0 }],
+        [{ "node": "Sem departamento", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}
