@@ -9,9 +9,9 @@ para o próximo — se um falhar, não adianta continuar.
 | 1 | Criar as tabelas | Supabase | ✅ feito |
 | 2 | Conferir as tabelas | Supabase | ✅ 28/28/28 |
 | 3 | Apontar o Vercel para a branch certa | Vercel | ✅ feito |
-| 4 | Cadastrar as variáveis de ambiente | Vercel | ⚠️ falta `SESSION_SECRET` |
+| 4 | Cadastrar as variáveis de ambiente | Vercel | ✅ as seis |
 | 5 | Deploy e conferir o boot | Vercel | ✅ no ar, banco conectado |
-| 6 | Criar a empresa e o primeiro usuário | Aplicação | 🔒 travado pelo passo 4 |
+| 6 | Criar a empresa e o primeiro usuário | Aplicação | ⬜ |
 | 7 | Conectar a Evolution | Evolution + aplicação | ⬜ |
 | 8 | Mensagem de ponta a ponta | Celular | ⬜ |
 
@@ -23,23 +23,12 @@ O boot confirmou o banco:
 [pricall] iniciado · ambiente=production · banco=postgres · e-mail=log · ia=mock · sentry=desligado
 ```
 
-`banco=postgres` é o Supabase respondendo. Falta só o `SESSION_SECRET` — sem
-ele o login não funciona, porque é a chave que assina as sessões.
+`banco=postgres` é o Supabase respondendo.
 
-### Consertar o SESSION_SECRET
-
-1. **Settings › Environment Variables**, ache `SESSION_SECRET`
-2. Três pontinhos à direita › **Edit**
-3. Gere um valor no PowerShell:
-   ```powershell
-   -join ((48..57)+(65..90)+(97..122) | Get-Random -Count 48 | % {[char]$_})
-   ```
-4. Cole no campo **Value** e salve
-5. **Deployments › Redeploy** no deploy mais recente
-
-O Redeploy é seguro a partir de agora: o último deploy já é o da branch certa,
-então reconstruir o mesmo commit é exatamente o que se quer. (Antes disso ele
-reconstruía o commit da `main`, que não tem código — ver a seção 5.)
+> **Uma variável nova só vale no próximo deploy.** Depois de salvar qualquer
+> coisa em Environment Variables, é preciso um Redeploy (ou qualquer push na
+> branch de produção) para a função enxergar o valor. Salvar sozinho não muda
+> nada no que já está no ar.
 
 ---
 
