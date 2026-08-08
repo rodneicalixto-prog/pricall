@@ -376,9 +376,11 @@ nada no que já está no ar.
 pooler). Invertidas, todo o tráfego cai nas 15 vagas do session pooler e o
 `EMAXCONNSESSION` derruba até o login.
 
-**Pool local em serverless é 1, não 10.** Cada invocação atende uma requisição
-por vez; quem faz o pooling é o pooler do Supabase. Um pool local grande só
-multiplica clientes disputando as mesmas vagas.
+**Pool local em serverless é pequeno — mas não 1.** Quem faz o pooling é o
+pooler do Supabase; um pool local grande só multiplica clientes disputando as
+mesmas vagas. O valor atual é **3**. Reduzir a 1 resolve o `EMAXCONNSESSION`
+mas cria outro problema: requisições simultâneas na mesma instância passam a
+esperar uma pela outra, e o envio de mensagem fica visivelmente lento.
 
 **Senha de banco só com letras e números.** `@`, `:`, `/`, `?`, `#` e `%` têm
 significado dentro da URL. O erro que aparece fala de host inválido e não dá
@@ -386,6 +388,19 @@ pista de que a causa é a senha.
 
 **Não use a Direct connection do Supabase no Vercel.** Ela atende só em IPv6 e
 as funções saem por IPv4. O session pooler resolve os dois lados.
+
+**Evento global filtrado por `conversationId`.** O `realtime.reconnected` é um
+pedido de revalidação que não pertence a conversa nenhuma — logo, não carrega
+esse campo. Compará-lo com o id da conversa aberta o descarta, e o resultado é
+cruel de diagnosticar: a lista de conversas atualiza, as notificações chegam, e
+só a conversa aberta fica congelada. Nenhum erro em log, porque do ponto de
+vista do código nada falhou.
+
+**`fromMe` descartado no parse do webhook.** Numa central, o vendedor responde
+pelo celular o tempo todo. Descartar essas mensagens deixa o histórico
+mentiroso: mostra a pergunta do cliente e não a resposta que ele recebeu — e o
+próximo vendedor responde de novo o que já foi respondido. Elas devem entrar
+como saída, sem contar como não lidas e sem notificar.
 
 ---
 

@@ -8,6 +8,13 @@ pronto para importar.
 
 ---
 
+> **Antes de tudo: você já tem fluxos rodando?**
+>
+> O porteiro serve para instâncias **novas**. Se já existem fluxos ativos com
+> webhook próprio na Evolution, apontar tudo para ele **derruba o que
+> funciona**. Vá direto para
+> [Quando já existem fluxos em produção](#quando-já-existem-fluxos-em-produção).
+
 ## O atrito
 
 A Evolution aceita **uma URL de webhook por instância**. O n8n cria **uma URL
@@ -66,6 +73,46 @@ departamentos.
 
 **5.** No nó **Qual departamento**, ajuste os nomes das instâncias e ligue cada
 saída ao Execute Workflow correspondente.
+
+---
+
+## Quando já existem fluxos em produção
+
+Cada fluxo com webhook próprio cadastrado na Evolution continua funcionando
+como está. Trocar a URL dele pela do porteiro é migração — e migração de algo
+que funciona, num sistema que atende cliente, não se faz sem necessidade.
+
+O caminho de menor risco é **acrescentar um ramo** ao que já existe:
+
+```
+Recebe Evolution
+   ├─→ [novo] Repassar ao PRICALL      ← HTTP Request
+   └─→ Filtra e Extrai                  ← o fluxo original, sem alteração
+```
+
+O nó novo:
+
+| Campo | Valor |
+| ----- | ----- |
+| Método | `POST` |
+| URL | `{{ $env.PRICALL_WEBHOOK_URL }}` |
+| Body | `{{ JSON.stringify($json.body) }}` |
+| On Error | **Continue** |
+| Timeout | 15000 |
+
+Sai em paralelo, tolerante a erro. Se o PRICALL cair, o fluxo nem percebe. Se o
+fluxo quebrar, o PRICALL já recebeu. Nenhuma linha do que existe é tocada.
+
+O porteiro fica para os números novos, que nascem já com a estrutura certa.
+
+### Antes de mexer nos fluxos antigos
+
+Vale uma conferida no que já está lá. Encontrei, num deles, a apikey da
+Evolution escrita **direto como valor de header no node**, em vez de
+credencial. Quem exportar o workflow leva a chave junto.
+
+Se for tocar nesses fluxos de qualquer forma, é uma boa hora para mover as
+chaves para credenciais.
 
 ---
 

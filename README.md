@@ -265,9 +265,17 @@ sem enxergar as conversas dos próprios vendedores.
 
 ---
 
+## Estado do projeto
+
+Se você está chegando agora — ou voltando depois de um tempo — comece por
+[`docs/estado-do-projeto.md`](docs/estado-do-projeto.md). Ele separa o que foi
+verificado funcionando em produção do que existe no código mas nunca foi
+exercitado, lista as pendências de segurança e explica as decisões de
+arquitetura que produzem comportamentos que, sem contexto, parecem defeito.
+
 ## Deploy
 
-Comece por [`docs/colocar-no-ar.md`](docs/colocar-no-ar.md) — checklist
+Depois, [`docs/colocar-no-ar.md`](docs/colocar-no-ar.md) — checklist
 sequencial de oito passos, do banco vazio até a primeira mensagem de WhatsApp
 chegando, com como conferir cada etapa antes de seguir.
 
