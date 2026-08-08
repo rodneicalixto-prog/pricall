@@ -110,7 +110,11 @@ export interface WhatsappProvider {
   parseWebhook(payload: unknown, headers: Headers): NormalizedEvent[];
 
   /** Valida a assinatura/segredo do webhook. */
-  verifySignature(rawBody: string, headers: Headers): boolean;
+  /**
+   * `url` existe porque nem todo painel de Evolution permite configurar
+   * cabeçalhos no webhook; nesses casos o token viaja na query string.
+   */
+  verifySignature(rawBody: string, headers: Headers, url?: URL): boolean;
 
   /** Testa a conexão (usado pelo painel de integridade). */
   checkConnection(): Promise<ConnectionCheck>;

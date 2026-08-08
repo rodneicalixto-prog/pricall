@@ -70,7 +70,7 @@ export async function POST(request: Request) {
 
   const provider = providerByName(providerName);
 
-  if (!provider.verifySignature(rawBody, request.headers)) {
+  if (!provider.verifySignature(rawBody, request.headers, new URL(request.url))) {
     return new NextResponse("Assinatura inválida.", { status: 401 });
   }
 

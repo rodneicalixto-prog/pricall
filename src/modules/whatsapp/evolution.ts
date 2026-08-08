@@ -125,11 +125,27 @@ export class EvolutionProvider implements WhatsappProvider {
   }
 
   /** A Evolution não assina o corpo; usamos um token compartilhado no header. */
-  verifySignature(_rawBody: string, headers: Headers): boolean {
+  /**
+   * A Evolution não assina o corpo do webhook, então a autenticidade vem de um
+   * segredo compartilhado que só nós e a instalação dela conhecemos.
+   *
+   * O cabeçalho é o caminho preferido. A query string existe porque vários
+   * painéis do Evolution Manager não têm campo para cabeçalho personalizado —
+   * sem essa alternativa, a única saída seria configurar o webhook pela API,
+   * de linha de comando. O segredo na URL aparece em log de servidor, o que é
+   * pior que no cabeçalho; por isso ela é a segunda opção, e a limpeza do
+   * Sentry já oculta a query string desta rota.
+   */
+  verifySignature(_rawBody: string, headers: Headers, url?: URL): boolean {
     const expected = env.evolution.webhookToken;
     if (!expected) return !env.isProduction;
+
     const received =
-      headers.get("x-evolution-token") ?? headers.get("authorization") ?? "";
+      headers.get("x-evolution-token") ??
+      headers.get("authorization") ??
+      url?.searchParams.get("token") ??
+      "";
+
     const clean = received.replace(/^Bearer\s+/i, "");
     const a = Buffer.from(expected);
     const b = Buffer.from(clean);

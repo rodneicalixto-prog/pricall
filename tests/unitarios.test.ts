@@ -2,7 +2,7 @@
  * Testes unitários das regras puras: distribuição, permissões, transições de
  * status, respostas rápidas, horário de funcionamento e telefone.
  */
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   eligibleCandidates,
   pickAssignee,
@@ -27,6 +27,8 @@ import { sanitizeMetadata } from "@/lib/audit";
 import { isWithinServiceWindow, validateMedia } from "@/modules/whatsapp/provider";
 import { redact } from "@/modules/ai";
 import { detectProvider } from "@/modules/whatsapp";
+import { EvolutionProvider } from "@/modules/whatsapp/evolution";
+import { env } from "@/lib/env";
 
 function candidato(parcial: Partial<Candidate> & { userId: string }): Candidate {
   return {
@@ -492,5 +494,49 @@ describe("identificação do provedor no webhook", () => {
     // exige a marca `kind` em vez de servir de vala comum.
     expect(detectProvider({ kind: "message", content: "oi" })).toBe("mock");
     expect(detectProvider({ content: "oi" })).toBeNull();
+  });
+});
+
+describe("autenticidade do webhook da Evolution", () => {
+  /**
+   * A Evolution não assina o corpo, então o segredo compartilhado é a única
+   * prova de origem. Aceitamos cabeçalho e query string porque muitos painéis
+   * do Evolution Manager não têm campo para cabeçalho personalizado.
+   */
+  const TOKEN = "token-de-teste-com-tamanho-razoavel";
+  const provider = new EvolutionProvider({});
+  const url = (query = "") =>
+    new URL(`https://app.teste/api/webhooks/whatsapp${query}`);
+
+  beforeEach(() => {
+    vi.spyOn(env.evolution, "webhookToken", "get").mockReturnValue(TOKEN);
+  });
+
+  it("aceita o token no cabeçalho próprio", () => {
+    const headers = new Headers({ "x-evolution-token": TOKEN });
+    expect(provider.verifySignature("", headers, url())).toBe(true);
+  });
+
+  it("aceita o token como Bearer", () => {
+    const headers = new Headers({ authorization: `Bearer ${TOKEN}` });
+    expect(provider.verifySignature("", headers, url())).toBe(true);
+  });
+
+  it("aceita o token na query string", () => {
+    const headers = new Headers();
+    expect(provider.verifySignature("", headers, url(`?token=${TOKEN}`))).toBe(true);
+  });
+
+  it("recusa token errado em qualquer um dos caminhos", () => {
+    expect(
+      provider.verifySignature("", new Headers({ "x-evolution-token": "errado" }), url()),
+    ).toBe(false);
+    expect(
+      provider.verifySignature("", new Headers(), url("?token=errado")),
+    ).toBe(false);
+  });
+
+  it("recusa quando não vem token nenhum", () => {
+    expect(provider.verifySignature("", new Headers(), url())).toBe(false);
   });
 });
