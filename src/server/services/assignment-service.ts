@@ -10,6 +10,7 @@ import {
   conversations,
   teamMembers,
   users,
+  type AssignmentStrategyValue,
 } from "@/db/schema";
 import {
   pickAssignee,
@@ -17,7 +18,10 @@ import {
   type Candidate,
   type RuleLike,
 } from "@/lib/assignment";
-import { recordConversationEvent } from "@/lib/audit";
+import { recordAudit, recordConversationEvent } from "@/lib/audit";
+import { requirePermission } from "@/lib/auth/rbac";
+import type { AuthContext } from "@/lib/auth/session";
+import { errors } from "@/lib/errors";
 import { publish } from "@/lib/realtime/bus";
 import { notify } from "./notifications";
 
@@ -282,4 +286,125 @@ async function warnIfOverloaded(organizationId: string, userId: string) {
       body: `${user.name} está com ${active} de ${user.max} atendimentos simultâneos.`,
     });
   }
+}
+
+/* ------------------------------------------------------------------ *
+ * Regra principal de distribuição
+ *
+ * A estratégia era escolhida uma única vez, no onboarding, e não havia como
+ * revisá-la depois — quem passasse batido por aquela tela ficava com
+ * distribuição manual para sempre, sem entender por que os vendedores
+ * cadastrados nunca recebiam conversa.
+ * ------------------------------------------------------------------ */
+
+/**
+ * A reserva não aceita `team_based` (seria circular: o setor já falhou) nem
+ * `first_available` (que não atribui, só avisa). Sobram as três que decidem
+ * sozinhas dentro do restante da empresa.
+ */
+export type FallbackStrategy = "manual" | "round_robin" | "least_active";
+
+export type MainRule = {
+  id: string;
+  strategy: AssignmentStrategyValue;
+  teamId: string | null;
+  requireOnline: boolean;
+  fallbackStrategy: FallbackStrategy | null;
+};
+
+/** Devolve a regra de maior precedência, criando uma se não houver nenhuma. */
+export async function getMainRule(auth: AuthContext): Promise<MainRule> {
+  requirePermission(auth, "assignment_rules.manage");
+  const db = await getDb();
+
+  const [rule] = await db
+    .select()
+    .from(assignmentRules)
+    .where(eq(assignmentRules.organizationId, auth.organizationId))
+    .orderBy(assignmentRules.priority)
+    .limit(1);
+
+  if (rule) {
+    const config = (rule.configuration ?? {}) as {
+      requireOnline?: boolean;
+      fallbackStrategy?: FallbackStrategy;
+    };
+    return {
+      id: rule.id,
+      strategy: rule.strategy,
+      teamId: rule.teamId,
+      requireOnline: config.requireOnline ?? true,
+      fallbackStrategy: config.fallbackStrategy ?? null,
+    };
+  }
+
+  const [criada] = await db
+    .insert(assignmentRules)
+    .values({
+      organizationId: auth.organizationId,
+      name: "Regra padrão",
+      strategy: "manual",
+      priority: 100,
+      isActive: true,
+      configuration: { requireOnline: true },
+    })
+    .returning();
+
+  return {
+    id: criada.id,
+    strategy: criada.strategy,
+    teamId: null,
+    requireOnline: true,
+    fallbackStrategy: null,
+  };
+}
+
+export async function updateMainRule(
+  auth: AuthContext,
+  input: {
+    strategy: AssignmentStrategyValue;
+    teamId?: string | null;
+    requireOnline?: boolean;
+    fallbackStrategy?: FallbackStrategy | null;
+  },
+): Promise<MainRule> {
+  requirePermission(auth, "assignment_rules.manage");
+  const db = await getDb();
+  const atual = await getMainRule(auth);
+
+  if (input.strategy === "team_based" && !input.teamId) {
+    throw errors.validation("Escolha o setor que vai receber as conversas.");
+  }
+
+  await db
+    .update(assignmentRules)
+    .set({
+      strategy: input.strategy,
+      teamId: input.strategy === "team_based" ? (input.teamId ?? null) : null,
+      isActive: true,
+      configuration: {
+        requireOnline: input.requireOnline ?? atual.requireOnline,
+        ...(input.fallbackStrategy
+          ? { fallbackStrategy: input.fallbackStrategy }
+          : {}),
+      },
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(assignmentRules.id, atual.id),
+        eq(assignmentRules.organizationId, auth.organizationId),
+      ),
+    );
+
+  await recordAudit({
+    organizationId: auth.organizationId,
+    userId: auth.userId,
+    action: "settings.assignment_rule_updated",
+    entityType: "assignment_rule",
+    entityId: atual.id,
+    metadata: { de: atual.strategy, para: input.strategy },
+  });
+
+  return getMainRule(auth);
 }

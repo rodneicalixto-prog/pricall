@@ -772,6 +772,143 @@ function ModalNovaConexao({
   );
 }
 
+type RegraPrincipal = {
+  strategy: string;
+  teamId: string | null;
+  requireOnline: boolean;
+};
+
+const ESTRATEGIAS: { valor: string; rotulo: string; descricao: string }[] = [
+  {
+    valor: "manual",
+    rotulo: "Manual",
+    descricao:
+      "Ninguém recebe automaticamente. Toda conversa fica em “Não atribuídos” até alguém assumir.",
+  },
+  {
+    valor: "least_active",
+    rotulo: "Menor carga",
+    descricao:
+      "Entrega para quem tem menos atendimentos abertos. Equilibra o volume entre a equipe.",
+  },
+  {
+    valor: "round_robin",
+    rotulo: "Rodízio",
+    descricao:
+      "Distribui em ordem, um para cada vendedor. Simples e previsível.",
+  },
+  {
+    valor: "first_available",
+    rotulo: "Primeiro a assumir",
+    descricao:
+      "Avisa todos ao mesmo tempo; o atendimento é de quem pegar primeiro.",
+  },
+];
+
+/**
+ * A estratégia era escolhida uma única vez no onboarding e não havia como
+ * revisá-la. Quem passasse batido ficava com distribuição manual sem entender
+ * por que os vendedores cadastrados nunca recebiam conversa.
+ */
+function SecaoEstrategia() {
+  const [regra, setRegra] = useState<RegraPrincipal | null>(null);
+  const [escolha, setEscolha] = useState("manual");
+  const [exigirOnline, setExigirOnline] = useState(true);
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const toast = useToast();
+
+  useEffect(() => {
+    void api<RegraPrincipal>("/api/assignment-rules")
+      .then((r) => {
+        setRegra(r);
+        setEscolha(r.strategy);
+        setExigirOnline(r.requireOnline);
+      })
+      .catch(() => setErro("Não foi possível carregar a regra atual."));
+  }, []);
+
+  async function salvar() {
+    setSalvando(true);
+    setErro(null);
+    try {
+      const atualizada = await api<RegraPrincipal>("/api/assignment-rules", {
+        method: "PATCH",
+        json: { strategy: escolha, requireOnline: exigirOnline },
+      });
+      setRegra(atualizada);
+      toast.mostrar("sucesso", "Distribuição atualizada.");
+    } catch (e) {
+      setErro(mensagemDeErro(e));
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  return (
+    <Cartao>
+      <h2 className="mb-1 text-base font-semibold">
+        Como as conversas são distribuídas
+      </h2>
+      <p className="mb-4 text-sm text-[var(--texto-2)]">
+        Vale para conversas novas, sem responsável. Quem já está atendendo não é
+        afetado.
+      </p>
+
+      {!regra ? (
+        <p className="text-sm text-[var(--texto-2)]">Carregando…</p>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {ESTRATEGIAS.map((op) => (
+            <label
+              key={op.valor}
+              className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-[var(--borda)] p-3 text-sm"
+            >
+              <input
+                type="radio"
+                name="estrategia"
+                value={op.valor}
+                checked={escolha === op.valor}
+                onChange={() => setEscolha(op.valor)}
+                className="mt-0.5 size-4 shrink-0 accent-[var(--primaria)]"
+              />
+              <span>
+                {op.rotulo}
+                <span className="mt-0.5 block text-xs text-[var(--texto-2)]">
+                  {op.descricao}
+                </span>
+              </span>
+            </label>
+          ))}
+
+          <label className="flex items-start gap-2.5 text-sm">
+            <input
+              type="checkbox"
+              checked={exigirOnline}
+              onChange={(e) => setExigirOnline(e.target.checked)}
+              disabled={escolha === "manual"}
+              className="mt-0.5 size-4 shrink-0 rounded accent-[var(--primaria)]"
+            />
+            <span>
+              Só distribuir para quem está online
+              <span className="block text-xs text-[var(--texto-2)]">
+                Desligado, a conversa também vai para quem está ausente — útil
+                em equipe pequena, onde deixar na fila é pior.
+              </span>
+            </span>
+          </label>
+
+          {erro && <p className="text-sm text-[var(--color-erro)]">{erro}</p>}
+
+          <Botao className="self-start" carregando={salvando} onClick={salvar}>
+            Salvar distribuição
+          </Botao>
+        </div>
+      )}
+    </Cartao>
+  );
+}
+
 function SecaoDistribuicao({
   config,
   salvando,
@@ -793,11 +930,13 @@ function SecaoDistribuicao({
 
   return (
     <div className="flex max-w-2xl flex-col gap-4">
+      <SecaoEstrategia />
+
       <Cartao>
-        <h2 className="mb-1 text-base font-semibold">Regras de distribuição</h2>
+        <h2 className="mb-1 text-base font-semibold">Limites e horário</h2>
         <p className="mb-4 text-sm text-[var(--texto-2)]">
-          A estratégia principal foi definida no onboarding. Aqui você ajusta os
-          limites de tempo e o comportamento fora do expediente.
+          Prazos de atendimento e o que fazer com o que chega fora do
+          expediente.
         </p>
 
         <div className="flex flex-col gap-4">
