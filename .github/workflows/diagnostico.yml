@@ -4,6 +4,10 @@
 # — o proxy recusa a conexão. Este fluxo roda na rede do GitHub e devolve um
 # relatório legível, sem expor nenhum segredo.
 #
+# O relatório sai no log E no resumo da execução. Os dois, de propósito: o
+# resumo é para você ler na interface, o log é o único que o assistente
+# consegue buscar pela API.
+#
 # Nada aqui altera configuração: só faz leitura e conta o que encontrou.
 name: Diagnóstico
 
@@ -19,84 +23,74 @@ on:
 jobs:
   verificar:
     runs-on: ubuntu-latest
+    env:
+      URL: https://evoapiopen.openwave.online
+      INSTANCIA: pricall
+      APIKEY: ${{ secrets.EVOLUTION_API_KEY }}
+      APP: https://pricall.vercel.app
     steps:
-      - name: Evolution API
-        env:
-          URL: https://evoapiopen.openwave.online
-          INSTANCIA: pricall
-          APIKEY: ${{ secrets.EVOLUTION_API_KEY }}
+      - name: Verificar
         run: |
           set -uo pipefail
-          {
-            echo "## Evolution API"
-            echo ""
-            echo "Endereço: \`$URL\`"
-            echo ""
-          } >> "$GITHUB_STEP_SUMMARY"
 
-          codigo=$(curl -sS -o /tmp/raiz.txt -w '%{http_code}' --max-time 20 "$URL" || echo 000)
+          # Escreve nos dois destinos de uma vez.
+          relatar() { echo "$1" | tee -a "$GITHUB_STEP_SUMMARY"; }
 
-          if [ "$codigo" = "000" ]; then
-            {
-              echo "**O servidor não respondeu.**"
-              echo ""
-              echo "A Evolution está fora do ar, o endereço está errado ou o"
-              echo "firewall bloqueia acesso externo. Enquanto isso não resolver,"
-              echo "o PRICALL não tem como enviar nem receber mensagem."
-            } >> "$GITHUB_STEP_SUMMARY"
-            exit 0
+          relatar "## Evolution"
+          relatar ""
+
+          raiz=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "$URL" || echo 000)
+
+          if [ "$raiz" = "000" ]; then
+            relatar "**Não respondeu.** Fora do ar, endereço errado ou bloqueio de firewall."
+            relatar "Enquanto isso durar, o PRICALL não envia nem recebe mensagem."
+          else
+            relatar "Servidor no ar — HTTP \`$raiz\`."
+
+            if [ -z "${APIKEY:-}" ]; then
+              relatar ""
+              relatar "Falta o secret \`EVOLUTION_API_KEY\` para consultar a instância."
+            else
+              # A Evolution mudou o caminho entre versões; tentamos os dois.
+              corpo=$(curl -sS --max-time 20 -H "apikey: $APIKEY" \
+                "$URL/instance/connectionState/$INSTANCIA" 2>/dev/null || echo '{}')
+              estado=$(echo "$corpo" | jq -r '.instance.state // .state // empty' 2>/dev/null || true)
+
+              if [ -z "$estado" ]; then
+                relatar ""
+                relatar "Resposta inesperada ao consultar \`$INSTANCIA\`. Instâncias existentes:"
+                # fetchInstances lista o que existe de fato — resolve nome errado.
+                lista=$(curl -sS --max-time 20 -H "apikey: $APIKEY" \
+                  "$URL/instance/fetchInstances" 2>/dev/null || echo '[]')
+                nomes=$(echo "$lista" | jq -r '(.. | objects | select(has("instanceName")) | .instanceName), (.[]?.name // empty)' 2>/dev/null | sort -u | head -20)
+                relatar "${nomes:-(nenhuma retornada — a apikey pode estar errada)}"
+              else
+                relatar ""
+                relatar "Instância \`$INSTANCIA\`: **$estado**"
+                case "$estado" in
+                  open) relatar "Pareada com o WhatsApp — é o que o PRICALL espera." ;;
+                  connecting|close) relatar "Não pareada. Leia o QR Code no painel da Evolution." ;;
+                  *) relatar "Estado não reconhecido." ;;
+                esac
+              fi
+            fi
           fi
 
-          echo "Servidor respondeu — HTTP \`$codigo\`." >> "$GITHUB_STEP_SUMMARY"
+          relatar ""
+          relatar "## PRICALL"
+          relatar ""
 
-          if [ -z "${APIKEY:-}" ]; then
-            {
-              echo ""
-              echo "Sem o secret \`EVOLUTION_API_KEY\`, não dá para consultar o"
-              echo "estado da instância. Cadastre-o para o diagnóstico completo."
-            } >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-
-          estado=$(curl -sS --max-time 20 \
-            -H "apikey: $APIKEY" \
-            "$URL/instance/connectionState/$INSTANCIA" 2>/dev/null || echo '{}')
-
-          # `open` = pareado com o WhatsApp. `close`/`connecting` = precisa ler o QR.
-          situacao=$(echo "$estado" | jq -r '.instance.state // .state // "desconhecido"')
-
-          {
-            echo ""
-            echo "Instância \`$INSTANCIA\`: **$situacao**"
-            echo ""
-            case "$situacao" in
-              open) echo "Pareada com o WhatsApp. É o estado que o PRICALL espera." ;;
-              connecting|close) echo "Não pareada — leia o QR Code no painel da Evolution." ;;
-              *) echo "Estado não reconhecido. A instância pode não existir com esse nome." ;;
-            esac
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: PRICALL
-        run: |
-          set -uo pipefail
-          {
-            echo ""
-            echo "## PRICALL"
-            echo ""
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          login=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 \
-            https://pricall.vercel.app/entrar || echo 000)
-          echo "- Tela de login: \`$login\`" >> "$GITHUB_STEP_SUMMARY"
+          login=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "$APP/entrar" || echo 000)
+          relatar "- Tela de login: \`$login\`"
 
           # Sem o cabeçalho do token, o webhook TEM de recusar. Um 200 aqui
-          # significaria que qualquer um na internet consegue injetar mensagem.
+          # significaria que qualquer um na internet injeta mensagem.
           webhook=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 \
             -X POST -H 'content-type: application/json' -d '{}' \
-            https://pricall.vercel.app/api/webhooks/whatsapp || echo 000)
+            "$APP/api/webhooks/whatsapp" || echo 000)
 
           if [ "$webhook" = "401" ] || [ "$webhook" = "403" ]; then
-            echo "- Webhook sem token: \`$webhook\` — recusado, como deve ser" >> "$GITHUB_STEP_SUMMARY"
+            relatar "- Webhook sem token: \`$webhook\` — recusado, como deve ser"
           else
-            echo "- ⚠️ Webhook sem token: \`$webhook\` — **deveria recusar**" >> "$GITHUB_STEP_SUMMARY"
+            relatar "- ⚠️ Webhook sem token: \`$webhook\` — **deveria recusar**"
           fi
