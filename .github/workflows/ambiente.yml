@@ -24,6 +24,11 @@ on:
         description: "Disparar um deploy depois de sincronizar"
         type: boolean
         default: true
+  # O assistente não tem permissão para disparar fluxos pela API, mas tem para
+  # fazer push. Tocar o arquivo de gatilho é como ele pede uma execução.
+  push:
+    paths:
+      - ".github/gatilhos/ambiente"
 
 env:
   PROJECT_ID: prj_QPT6rPPPBZGREr2eFprEzmSIFgP2
@@ -87,7 +92,9 @@ jobs:
           echo "$enviados variável(is) sincronizada(s)." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Disparar o deploy
-        if: inputs.redeploy
+        # Em push o campo `inputs` não existe, e sem deploy a sincronização não
+        # muda nada no que está no ar — então o padrão é sempre implantar.
+        if: github.event_name != 'workflow_dispatch' || inputs.redeploy
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |

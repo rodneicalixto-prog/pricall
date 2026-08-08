@@ -9,6 +9,12 @@ name: Diagnóstico
 
 on:
   workflow_dispatch:
+  # O assistente não tem permissão para disparar fluxos pela API, mas tem para
+  # fazer push. Tocar o arquivo de gatilho é como ele pede uma execução.
+  push:
+    paths:
+      - ".github/gatilhos/diagnostico"
+      - ".github/workflows/diagnostico.yml"
 
 jobs:
   verificar:

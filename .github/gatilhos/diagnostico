@@ -1,0 +1,8 @@
+Toque este arquivo para pedir uma execução do fluxo Diagnóstico.
+
+O conteúdo não importa — o que dispara é a alteração. Existe porque o
+assistente não tem permissão para disparar fluxos pela API do GitHub, mas tem
+para fazer push. Mudar uma linha aqui é como ele pede uma execução.
+
+Execuções:
+- 2026-08-08 · primeira, para conferir a Evolution

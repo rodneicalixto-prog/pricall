@@ -1,0 +1,11 @@
+Toque este arquivo para pedir uma execução do fluxo Ambiente.
+
+O conteúdo não importa — o que dispara é a alteração. Existe porque o
+assistente não tem permissão para disparar fluxos pela API do GitHub, mas tem
+para fazer push. Mudar uma linha aqui é como ele pede uma execução.
+
+O fluxo empurra os segredos guardados no GitHub para as variáveis de ambiente
+do Vercel e dispara um deploy. Sem o secret VERCEL_TOKEN cadastrado, ele para
+logo no começo com uma mensagem explicando o que falta.
+
+Execuções:
