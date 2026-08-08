@@ -6,16 +6,23 @@ para o próximo — se um falhar, não adianta continuar.
 
 | # | Passo | Onde | Estado |
 | - | ----- | ---- | ------ |
-| 1 | Criar as tabelas | Supabase | ✅ feito |
+| 1 | Criar as tabelas | Supabase | ✅ 28 tabelas |
 | 2 | Conferir as tabelas | Supabase | ✅ 28/28/28 |
 | 3 | Apontar o Vercel para a branch certa | Vercel | ✅ feito |
-| 4 | Cadastrar as variáveis de ambiente | Vercel | ✅ as seis |
-| 5 | Deploy e conferir o boot | Vercel | ✅ no ar, banco conectado |
-| 6 | Criar a empresa e o primeiro usuário | Aplicação | ⬜ |
-| 7 | Conectar a Evolution | Evolution + aplicação | ⬜ |
-| 8 | Mensagem de ponta a ponta | Celular | ⬜ |
+| 4 | Cadastrar as variáveis de ambiente | Vercel | ✅ dez variáveis |
+| 5 | Deploy e conferir o boot | Vercel | ✅ `banco=postgres` |
+| 6 | Criar a empresa e o primeiro usuário | Aplicação | ✅ Calixto Soluções |
+| 7 | Conectar a Evolution | Evolution + aplicação | ✅ instância `open` |
+| 8 | Mensagem de ponta a ponta | Celular | ✅ recebida e respondida |
 
 **No ar:** <https://pricall.vercel.app/entrar>
+
+O piloto está de pé. Mensagem de cliente entra na central sozinha, é atribuída,
+respondida pela aplicação e a confirmação de entrega volta.
+
+Daqui em diante este documento serve para duas coisas: montar um segundo
+ambiente do zero (homologação, outra empresa) e consultar as armadilhas da
+seção final, que custaram caro para descobrir.
 
 O boot confirmou o banco:
 
@@ -246,7 +253,32 @@ banco guarda só o nome da variável de ambiente onde a chave está; a chave nun
 
 Clique em **Testar conexão**. O estado da instância deve voltar `open`.
 
-Agora aponte a Evolution para a aplicação:
+Agora aponte a Evolution para a aplicação. Sem isto as mensagens chegam ao
+WhatsApp mas não entram na central.
+
+### Pelo Evolution Manager (recomendado)
+
+No painel da instância, procure **Events › Webhook**:
+
+| Campo | Valor |
+| ----- | ----- |
+| **Enabled** | ligado |
+| **URL** | `https://pricall.vercel.app/api/webhooks/whatsapp?token=SEU_TOKEN` |
+| **Webhook by Events** | desligado |
+| **Webhook Base64** | desligado |
+| **Events** | só `MESSAGES_UPSERT`, `MESSAGES_UPDATE`, `SEND_MESSAGE` |
+
+`SEU_TOKEN` é o valor de `EVOLUTION_WEBHOOK_TOKEN`, colado no fim da URL.
+
+> **Por que o token vai na URL?** A maioria dos painéis do Evolution Manager
+> não tem campo para cabeçalho personalizado. O PRICALL aceita o token pelo
+> cabeçalho `x-evolution-token` (preferível, porque não aparece em log de
+> servidor) ou pela query string — e é essa segunda forma que permite
+> configurar tudo pela tela.
+
+Ligar mais eventos do que os três só gera tráfego que a aplicação descarta.
+
+### Pela API, se preferir cabeçalho
 
 ```bash
 curl -X POST "https://SUA-EVOLUTION/webhook/set/SUA_INSTANCIA" \
@@ -263,14 +295,23 @@ curl -X POST "https://SUA-EVOLUTION/webhook/set/SUA_INSTANCIA" \
   }'
 ```
 
-Para conferir que a proteção está de pé, chame o webhook sem o header:
+### Conferir a proteção
+
+O webhook é público, então precisa recusar tudo que não comprove origem:
 
 ```bash
+# Envelope desconhecido → 400
 curl -i -X POST https://pricall.vercel.app/api/webhooks/whatsapp -d '{}'
+
+# Envelope da Evolution sem token → 401
+curl -i -X POST https://pricall.vercel.app/api/webhooks/whatsapp \
+  -H 'content-type: application/json' \
+  -d '{"event":"messages.upsert","instance":"pricall","data":{}}'
 ```
 
-Tem que responder **401**. Se responder 200, o `EVOLUTION_WEBHOOK_TOKEN` não
-chegou na aplicação — e qualquer um na internet consegue injetar mensagem.
+Um **200** em qualquer um dos dois significa que qualquer pessoa na internet
+consegue criar conversa forjada na sua central. O fluxo **Diagnóstico** testa
+os dois automaticamente.
 
 ---
 
@@ -289,6 +330,62 @@ envio → confirmação.
 Se travar no passo 1, olhe **Configurações › Integridade e logs**: ele mostra o
 horário do último webhook recebido. Sem nenhum registro, o problema está entre
 a Evolution e o Vercel, não dentro da aplicação.
+
+---
+
+## Diagnóstico automático
+
+Dois fluxos no GitHub cuidam do que exige alcançar Vercel e Evolution de fora:
+
+| Fluxo | O que faz |
+| ----- | --------- |
+| **Diagnóstico** | verifica a Evolution, o estado da instância e se o webhook recusa quem não comprova origem |
+| **Ambiente** | empurra segredos do GitHub para as variáveis do Vercel e dispara deploy |
+
+Rodam em **Actions › [fluxo] › Run workflow**, ou alterando o arquivo
+correspondente em `.github/gatilhos/`.
+
+Dependem de dois secrets em *Settings › Secrets and variables › Actions*:
+`VERCEL_TOKEN` e `EVOLUTION_API_KEY`. Sem eles os fluxos avisam o que falta em
+vez de quebrar.
+
+Rode o **Diagnóstico** sempre que algo parecer errado — ele separa em segundos
+o que é problema da Evolution, do PRICALL ou da rede.
+
+---
+
+## Armadilhas que já custaram caro
+
+Cada uma destas consumiu horas. Estão aqui para a segunda instalação não
+repetir a primeira.
+
+**`vercel.json` acima do plano derruba o deploy em silêncio.** `regions` e cron
+mais frequente que diário são recursos Pro. No Hobby o Vercel recusa o deploy
+na validação e **não registra nada** na lista de Deployments. Parece que os
+pushes pararam de chegar. O sintoma que identifica: um deploy hook responde
+`201` com `state: PENDING` e nunca vira deploy.
+
+**Redeploy não muda a branch.** Ele reconstrói o *mesmo commit*. Depois de
+trocar a Production Branch, só um commit novo publica a branch nova.
+
+**Variável de ambiente só vale no próximo deploy.** Salvar no painel não muda
+nada no que já está no ar.
+
+**As duas URLs de banco precisam ter portas diferentes.** `DATABASE_URL` em
+**6543** (transaction pooler) e `DATABASE_URL_UNPOOLED` em **5432** (session
+pooler). Invertidas, todo o tráfego cai nas 15 vagas do session pooler e o
+`EMAXCONNSESSION` derruba até o login.
+
+**Pool local em serverless é 1, não 10.** Cada invocação atende uma requisição
+por vez; quem faz o pooling é o pooler do Supabase. Um pool local grande só
+multiplica clientes disputando as mesmas vagas.
+
+**Senha de banco só com letras e números.** `@`, `:`, `/`, `?`, `#` e `%` têm
+significado dentro da URL. O erro que aparece fala de host inválido e não dá
+pista de que a causa é a senha.
+
+**Não use a Direct connection do Supabase no Vercel.** Ela atende só em IPv6 e
+as funções saem por IPv4. O session pooler resolve os dois lados.
 
 ---
 
