@@ -255,17 +255,30 @@ a Evolution e o Vercel, não dentro da aplicação.
 Coisas que não impedem o piloto, mas que você vai querer resolver antes de a
 equipe inteira entrar:
 
-**O cron.** O `vercel.json` agenda `/api/jobs` a cada 5 minutos, mas o plano
-Hobby só permite uma vez por dia. Sem execução frequente, o sistema funciona e
-não dá erro — simplesmente não acontecem: alerta de SLA, reatribuição de
-conversa abandonada, lembrete de retorno agendado, marcação de vendedor
-ausente, limpeza de sessão expirada. Se ficar no Hobby, use um agendador
+**O cron roda uma vez por dia.** O `vercel.json` agenda `/api/jobs` às 8h UTC
+(5h de Brasília) porque **é o máximo que o plano Hobby aceita**.
+
+Isso não é uma escolha de conveniência: um `vercel.json` pedindo mais que isso
+faz o Vercel **recusar o deploy inteiro** na validação — e a recusa é
+silenciosa. O deploy não aparece nem como falha na lista; simplesmente não
+existe. O mesmo vale para `"regions"`, que é recurso do plano Pro. Se você
+adicionar qualquer um dos dois no Hobby, os deploys param de sair sem
+explicação nenhuma.
+
+Com uma execução diária o sistema funciona, mas estes ficam lentos: alerta de
+SLA, reatribuição de conversa abandonada, lembrete de retorno agendado,
+marcação de vendedor ausente, limpeza de sessão expirada.
+
+Para tê-los de volta a cada 5 minutos sem assinar o Pro, use um agendador
 externo (cron-job.org, GitHub Actions) chamando:
 
 ```bash
 curl -X POST https://pricall.vercel.app/api/jobs \
   -H "x-pricall-job-token: $CRON_SECRET"
 ```
+
+Ao migrar para o Pro, volte o `schedule` para `*/5 * * * *` e, se quiser menor
+latência no Brasil, acrescente `"regions": ["gru1"]`.
 
 **O repositório é público.** Não há segredo no código — o banco guarda apenas
 referências a variáveis de ambiente, e as chaves ficam só no Vercel. Ainda

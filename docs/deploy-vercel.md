@@ -165,17 +165,22 @@ LOG_LEVEL=info
 
 ## 4. Cron
 
-O `vercel.json` do repositório já agenda `/api/jobs` a cada 5 minutos. O
-Vercel autentica com `Authorization: Bearer $CRON_SECRET`, e o endpoint
+O `vercel.json` do repositório agenda `/api/jobs` **uma vez por dia**, às 8h
+UTC. O Vercel autentica com `Authorization: Bearer $CRON_SECRET`, e o endpoint
 aceita esse formato.
+
+> **Não aumente essa frequência no plano Hobby.** Um `vercel.json` pedindo
+> cron mais frequente que diário — ou declarando `"regions"`, que é recurso
+> Pro — faz o Vercel **recusar o deploy na validação**. A recusa é silenciosa:
+> o deploy não aparece nem como falha, e a impressão é de que os pushes
+> pararam de chegar. Custa horas de diagnóstico no lugar errado.
 
 Sem o cron, o sistema funciona — mas **nada disso acontece**: alerta de SLA,
 reatribuição de conversa abandonada, lembrete de retorno agendado, marcação de
 vendedor ausente, limpeza de sessões. Não dá erro; simplesmente não roda.
 
-> O plano Hobby permite cron uma vez por dia. Para rodar a cada 5 minutos é
-> preciso o plano Pro. Se ficar no Hobby, use um agendador externo
-> (cron-job.org, GitHub Actions) chamando:
+> Para ter a execução a cada 5 minutos sem assinar o Pro, use um agendador
+> externo (cron-job.org, GitHub Actions) chamando:
 >
 > ```
 > curl -X POST https://SEU-PROJETO.vercel.app/api/jobs \
