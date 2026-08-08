@@ -146,6 +146,29 @@ export function ProvedorTempoReal({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  /**
+   * Rede de segurança contra tempo real silenciosamente quebrado.
+   *
+   * O evento só chega à tela se a ponte `pg_notify` estiver ativa na mesma
+   * instância que atende o SSE — e em serverless as requisições se espalham
+   * por instâncias diferentes, cada uma precisando reativar a ponte. Quando
+   * isso falha não há erro visível: a conversa aberta simplesmente para de se
+   * atualizar, e a pessoa descobre a mensagem nova por outro caminho.
+   *
+   * Revalidar de tempos em tempos custa uma requisição pequena e transforma
+   * "não atualiza" em "atualiza alguns segundos depois". Só roda com a aba em
+   * primeiro plano, para não gastar à toa.
+   */
+  useEffect(() => {
+    const intervalo = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      for (const ouvinte of ouvintes.current) {
+        ouvinte({ type: "realtime.reconnected" });
+      }
+    }, 20_000);
+    return () => clearInterval(intervalo);
+  }, []);
+
   return (
     <Contexto.Provider value={{ conectado, online, assinar }}>
       {children}

@@ -44,7 +44,7 @@ async function createDatabase(): Promise<Database> {
      * conexão por instância, devolvida rápido.
      */
     const client = postgres(env.databaseUrl!, {
-      max: env.isProduction ? 1 : 3,
+      max: env.isProduction ? 3 : 3,
       idle_timeout: env.isProduction ? 5 : 20,
       max_lifetime: 60 * 5,
       connect_timeout: 15,

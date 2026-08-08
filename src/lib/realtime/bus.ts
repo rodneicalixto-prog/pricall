@@ -147,7 +147,18 @@ async function attachPgBridge() {
         /* payload inválido é ignorado */
       }
     });
-  } catch {
+    console.info("[pricall] ponte de tempo real ativa");
+  } catch (error) {
+    /**
+     * Sem esta ponte, um evento publicado por uma instância não chega ao SSE
+     * das outras — e o sintoma é a conversa aberta não se atualizar sozinha,
+     * sem erro visível em lugar nenhum. Registrar é o que separa "o tempo real
+     * está quebrado" de "a mensagem demorou".
+     */
+    console.error(
+      "[pricall] ponte de tempo real indisponível:",
+      error instanceof Error ? error.message : "motivo desconhecido",
+    );
     g.__pricallBus__!.pgBridgeReady = false;
   }
 }
