@@ -26,6 +26,7 @@ import { formatPhone, isValidPhone, maskPhone, normalizePhone } from "@/lib/phon
 import { sanitizeMetadata } from "@/lib/audit";
 import { isWithinServiceWindow, validateMedia } from "@/modules/whatsapp/provider";
 import { redact } from "@/modules/ai";
+import { detectProvider } from "@/modules/whatsapp";
 
 function candidato(parcial: Partial<Candidate> & { userId: string }): Candidate {
   return {
@@ -460,5 +461,36 @@ describe("privacidade na IA", () => {
     expect(texto).toContain("[telefone oculto]");
     expect(texto).not.toContain("123.456.789-01");
     expect(texto).not.toContain("ana@exemplo.com");
+  });
+});
+
+describe("identificação do provedor no webhook", () => {
+  /**
+   * Regressão de uma falha de segurança real: o padrão era `mock` para
+   * qualquer envelope não reconhecido. Como o provedor de demonstração aceita
+   * eventos já normalizados e não verifica assinatura, o endpoint público
+   * aceitava conversa forjada de qualquer origem — em produção inclusive.
+   */
+  it("reconhece o envelope da Cloud API", () => {
+    expect(detectProvider({ object: "whatsapp_business_account", entry: [] }))
+      .toBe("cloud_api");
+  });
+
+  it("reconhece o envelope da Evolution", () => {
+    expect(detectProvider({ event: "messages.upsert", instance: "pricall" }))
+      .toBe("evolution");
+  });
+
+  it("recusa envelope desconhecido em vez de cair na demonstração", () => {
+    for (const payload of [{}, { foo: "bar" }, [], null, "texto", 42]) {
+      expect(detectProvider(payload), JSON.stringify(payload)).toBeNull();
+    }
+  });
+
+  it("só aceita o envelope de demonstração quando ele se declara", () => {
+    // A rota ainda recusa este caminho em produção; aqui garantimos que ele
+    // exige a marca `kind` em vez de servir de vala comum.
+    expect(detectProvider({ kind: "message", content: "oi" })).toBe("mock");
+    expect(detectProvider({ content: "oi" })).toBeNull();
   });
 });

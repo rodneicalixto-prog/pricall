@@ -10,7 +10,7 @@ import { describeError } from "@/lib/audit";
 import { env } from "@/lib/env";
 import { checkRateLimit, clientIp, RATE_LIMITS } from "@/lib/rate-limit";
 import { safeCompare } from "@/lib/auth/session";
-import { providerByName } from "@/modules/whatsapp";
+import { detectProvider, providerByName } from "@/modules/whatsapp";
 import { ingestEvents } from "@/server/services/inbound";
 
 /** Verificação inicial exigida pela Meta (hub.challenge). */
@@ -54,6 +54,20 @@ export async function POST(request: Request) {
 
   // Descobre o provedor pelo formato do envelope.
   const providerName = detectProvider(payload);
+
+  /**
+   * Formato desconhecido não pode cair no provedor de demonstração: ele aceita
+   * eventos já normalizados e não verifica assinatura nenhuma. Sem esta porta
+   * fechada, qualquer um na internet injeta conversa forjada mandando
+   * `{"kind":"message", ...}` para cá.
+   */
+  if (providerName === null) {
+    return new NextResponse("Formato não reconhecido.", { status: 400 });
+  }
+  if (providerName === "mock" && (env.isProduction || !env.demoModeEnabled)) {
+    return new NextResponse("Formato não reconhecido.", { status: 400 });
+  }
+
   const provider = providerByName(providerName);
 
   if (!provider.verifySignature(rawBody, request.headers)) {
@@ -84,10 +98,3 @@ export async function POST(request: Request) {
   }
 }
 
-function detectProvider(payload: unknown): "cloud_api" | "evolution" | "mock" {
-  if (payload && typeof payload === "object") {
-    if ("object" in payload && "entry" in payload) return "cloud_api";
-    if ("event" in payload && "instance" in payload) return "evolution";
-  }
-  return "mock";
-}

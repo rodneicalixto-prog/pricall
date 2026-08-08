@@ -92,6 +92,27 @@ export function providerFor(
 }
 
 /** Provedor usado para interpretar um webhook antes de conhecer a conexão. */
+/**
+ * Identifica o provedor pelo formato do envelope recebido no webhook. Devolve
+ * `null` quando não reconhece.
+ *
+ * O padrão aqui já foi `mock`, e isso era uma falha de segurança: o provedor
+ * de demonstração aceita eventos já normalizados e não verifica assinatura
+ * nenhuma, então qualquer envelope estranho — de qualquer origem na internet —
+ * entrava por ele. Formato desconhecido agora é recusado pela rota.
+ */
+export function detectProvider(
+  payload: unknown,
+): "cloud_api" | "evolution" | "mock" | null {
+  if (!payload || typeof payload !== "object") return null;
+  if ("object" in payload && "entry" in payload) return "cloud_api";
+  if ("event" in payload && "instance" in payload) return "evolution";
+  // Envelope já normalizado: existe só em demonstração, e a rota recusa este
+  // caminho em produção.
+  if ("kind" in payload) return "mock";
+  return null;
+}
+
 export function providerByName(
   name: "mock" | "cloud_api" | "evolution",
   credentials: ProviderCredentials = {},

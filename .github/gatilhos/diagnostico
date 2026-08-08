@@ -7,3 +7,5 @@ para fazer push. Mudar uma linha aqui é como ele pede uma execução.
 Execuções:
 - 2026-08-08 · primeira, para conferir a Evolution
 - 2026-08-08 · segunda, depois de tirar o acento do nome da variável
+- 2026-08-08 · terceira, com o relatório saindo no log
+- 2026-08-08 · quarta, para confirmar que o webhook passou a recusar
