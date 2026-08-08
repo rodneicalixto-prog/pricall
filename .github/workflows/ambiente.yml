@@ -1,0 +1,119 @@
+# Sincroniza as variáveis de ambiente do projeto para o Vercel.
+#
+# Existe porque o assistente alcança o GitHub mas não a API do Vercel. O
+# GitHub Actions roda na infraestrutura do GitHub, com rede livre — então ele
+# é a ponte: os segredos ficam guardados aqui, e este fluxo os empurra.
+#
+# Os valores NUNCA aparecem no log: o GitHub mascara secrets na saída, e o
+# corpo da requisição é montado com jq a partir de variáveis de ambiente, sem
+# interpolação em linha de comando.
+#
+# Configuração (uma vez), em Settings › Secrets and variables › Actions:
+#
+#   VERCEL_TOKEN              vercel.com/account/tokens
+#   EVOLUTION_API_KEY         apikey da sua Evolution
+#   EVOLUTION_WEBHOOK_TOKEN   valor inventado por você
+#
+# Os secrets que você não cadastrar são simplesmente pulados.
+name: Ambiente
+
+on:
+  workflow_dispatch:
+    inputs:
+      redeploy:
+        description: "Disparar um deploy depois de sincronizar"
+        type: boolean
+        default: true
+
+env:
+  PROJECT_ID: prj_QPT6rPPPBZGREr2eFprEzmSIFgP2
+  TEAM_ID: team_xCWGuCpqFbPqf4VvIFxJXrJe
+
+jobs:
+  sincronizar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Conferir o token
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "::error::Falta o secret VERCEL_TOKEN. Crie em vercel.com/account/tokens e cadastre em Settings › Secrets and variables › Actions."
+            exit 1
+          fi
+
+      - name: Enviar as variáveis
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          EVOLUTION_API_URL: https://evoapiopen.openwave.online
+          EVOLUTION_INSTANCE: pricall
+          EVOLUTION_API_KEY: ${{ secrets.EVOLUTION_API_KEY }}
+          EVOLUTION_WEBHOOK_TOKEN: ${{ secrets.EVOLUTION_WEBHOOK_TOKEN }}
+        run: |
+          set -euo pipefail
+          enviados=0
+
+          for nome in EVOLUTION_API_URL EVOLUTION_INSTANCE EVOLUTION_API_KEY EVOLUTION_WEBHOOK_TOKEN; do
+            valor="${!nome:-}"
+            if [ -z "$valor" ]; then
+              echo "· $nome — sem valor, pulando"
+              continue
+            fi
+
+            # upsert=true substitui o valor quando a variável já existe, em vez
+            # de falhar com conflito. jq monta o JSON para que o valor nunca
+            # passe pela linha de comando.
+            corpo=$(VALOR="$valor" NOME="$nome" jq -nc \
+              '{key: env.NOME, value: env.VALOR, type: "encrypted", target: ["production", "preview"]}')
+
+            código=$(curl -sS -o /tmp/resposta.json -w '%{http_code}' \
+              -X POST "https://api.vercel.com/v10/projects/${PROJECT_ID}/env?upsert=true&teamId=${TEAM_ID}" \
+              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "$corpo")
+
+            if [ "$código" -ge 200 ] && [ "$código" -lt 300 ]; then
+              echo "✓ $nome"
+              enviados=$((enviados + 1))
+            else
+              # A resposta de erro do Vercel descreve o problema sem ecoar o valor.
+              echo "::error::$nome falhou (HTTP $código): $(jq -r '.error.message // "sem detalhe"' /tmp/resposta.json)"
+              exit 1
+            fi
+          done
+
+          echo "$enviados variável(is) sincronizada(s)." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Disparar o deploy
+        if: inputs.redeploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Variável nova só vale no próximo deploy; sem isto a sincronização
+          # não muda nada no que está no ar.
+          corpo=$(jq -nc --arg sha "$GITHUB_SHA" '{
+            name: "pricall",
+            target: "production",
+            gitSource: {
+              type: "github",
+              org: "rodneicalixto-prog",
+              repo: "pricall",
+              ref: $sha
+            }
+          }')
+
+          código=$(curl -sS -o /tmp/deploy.json -w '%{http_code}' \
+            -X POST "https://api.vercel.com/v13/deployments?teamId=${TEAM_ID}" \
+            -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "$corpo")
+
+          if [ "$código" -ge 300 ]; then
+            echo "::error::Deploy recusado (HTTP $código): $(jq -r '.error.message // "sem detalhe"' /tmp/deploy.json)"
+            exit 1
+          fi
+
+          echo "Deploy: https://$(jq -r '.url' /tmp/deploy.json)" >> "$GITHUB_STEP_SUMMARY"
