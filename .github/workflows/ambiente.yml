@@ -73,18 +73,18 @@ jobs:
             corpo=$(VALOR="$valor" NOME="$nome" jq -nc \
               '{key: env.NOME, value: env.VALOR, type: "encrypted", target: ["production", "preview"]}')
 
-            código=$(curl -sS -o /tmp/resposta.json -w '%{http_code}' \
+            codigo=$(curl -sS -o /tmp/resposta.json -w '%{http_code}' \
               -X POST "https://api.vercel.com/v10/projects/${PROJECT_ID}/env?upsert=true&teamId=${TEAM_ID}" \
               -H "Authorization: Bearer ${VERCEL_TOKEN}" \
               -H "Content-Type: application/json" \
               -d "$corpo")
 
-            if [ "$código" -ge 200 ] && [ "$código" -lt 300 ]; then
+            if [ "$codigo" -ge 200 ] && [ "$codigo" -lt 300 ]; then
               echo "✓ $nome"
               enviados=$((enviados + 1))
             else
               # A resposta de erro do Vercel descreve o problema sem ecoar o valor.
-              echo "::error::$nome falhou (HTTP $código): $(jq -r '.error.message // "sem detalhe"' /tmp/resposta.json)"
+              echo "::error::$nome falhou (HTTP $codigo): $(jq -r '.error.message // "sem detalhe"' /tmp/resposta.json)"
               exit 1
             fi
           done
@@ -112,14 +112,14 @@ jobs:
             }
           }')
 
-          código=$(curl -sS -o /tmp/deploy.json -w '%{http_code}' \
+          codigo=$(curl -sS -o /tmp/deploy.json -w '%{http_code}' \
             -X POST "https://api.vercel.com/v13/deployments?teamId=${TEAM_ID}" \
             -H "Authorization: Bearer ${VERCEL_TOKEN}" \
             -H "Content-Type: application/json" \
             -d "$corpo")
 
-          if [ "$código" -ge 300 ]; then
-            echo "::error::Deploy recusado (HTTP $código): $(jq -r '.error.message // "sem detalhe"' /tmp/deploy.json)"
+          if [ "$codigo" -ge 300 ]; then
+            echo "::error::Deploy recusado (HTTP $codigo): $(jq -r '.error.message // "sem detalhe"' /tmp/deploy.json)"
             exit 1
           fi
 

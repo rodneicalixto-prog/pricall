@@ -34,9 +34,9 @@ jobs:
             echo ""
           } >> "$GITHUB_STEP_SUMMARY"
 
-          código=$(curl -sS -o /tmp/raiz.txt -w '%{http_code}' --max-time 20 "$URL" || echo 000)
+          codigo=$(curl -sS -o /tmp/raiz.txt -w '%{http_code}' --max-time 20 "$URL" || echo 000)
 
-          if [ "$código" = "000" ]; then
+          if [ "$codigo" = "000" ]; then
             {
               echo "**O servidor não respondeu.**"
               echo ""
@@ -47,7 +47,7 @@ jobs:
             exit 0
           fi
 
-          echo "Servidor respondeu — HTTP \`$código\`." >> "$GITHUB_STEP_SUMMARY"
+          echo "Servidor respondeu — HTTP \`$codigo\`." >> "$GITHUB_STEP_SUMMARY"
 
           if [ -z "${APIKEY:-}" ]; then
             {
