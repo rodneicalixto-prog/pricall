@@ -267,9 +267,15 @@ sem enxergar as conversas dos próprios vendedores.
 
 ## Deploy
 
-Para **Vercel + Evolution API + Gmail** há um guia passo a passo em
-[`docs/deploy-vercel.md`](docs/deploy-vercel.md), com as variáveis prontas e
-as limitações do serverless explicadas.
+Comece por [`docs/colocar-no-ar.md`](docs/colocar-no-ar.md) — checklist
+sequencial de oito passos, do banco vazio até a primeira mensagem de WhatsApp
+chegando, com como conferir cada etapa antes de seguir.
+
+Os detalhes de cada parte ficam em
+[`docs/deploy-vercel.md`](docs/deploy-vercel.md) (variáveis de ambiente,
+Evolution, Gmail, limitações do serverless) e
+[`docs/setup-supabase.md`](docs/setup-supabase.md) (criação do banco pela
+interface, sem linha de comando).
 
 ### Checklist genérico
 
