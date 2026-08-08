@@ -176,15 +176,35 @@ export function PainelConversa({
 
   /* ------------------------- Tempo real ------------------------- */
 
+  /**
+   * `realtime.reconnected` é um pedido global de revalidação — ele não
+   * pertence a conversa nenhuma e por isso não carrega `conversationId`.
+   * Compará-lo com o id da conversa aberta descartava justamente o evento que
+   * existe para cobrir os buracos do tempo real: a lista se atualizava, a
+   * conversa aberta não, e a mensagem nova só aparecia pelas notificações.
+   */
+  const ehDestaConversa = (evento: { type: string; conversationId?: string }) =>
+    evento.type === "realtime.reconnected" ||
+    evento.conversationId === conversaId;
+
   useEventoTempoReal(EVENTOS_MENSAGEM, (evento) => {
-    if (evento.conversationId !== conversaId) return;
+    if (!ehDestaConversa(evento)) return;
     void api<{ items: Mensagem[]; nextCursor: string | null }>(
       `/api/conversations/${conversaId}/messages?limit=40`,
     )
       .then((d) => {
+        /**
+         * A revalidação periódica também precisa marcar como lida quando
+         * traz mensagem nova — a conversa está aberta na tela, então ela foi
+         * lida. Comparar a última mensagem evita disparar isso a cada ciclo
+         * quando nada mudou.
+         */
+        const chegouMensagem = d.items.at(-1)?.id !== mensagens.at(-1)?.id;
+
         setMensagens(d.items);
         setCursor(d.nextCursor);
-        if (evento.type === "message.created") {
+
+        if (chegouMensagem) {
           rolarAoFim.current = true;
           void api(`/api/conversations/${conversaId}/read`, { method: "POST" });
         }
@@ -193,7 +213,7 @@ export function PainelConversa({
   });
 
   useEventoTempoReal(EVENTOS_CONVERSA, (evento) => {
-    if (evento.conversationId !== conversaId) return;
+    if (!ehDestaConversa(evento)) return;
     void api<DetalheConversa>(`/api/conversations/${conversaId}`)
       .then(setDetalhe)
       .catch(() => {});
