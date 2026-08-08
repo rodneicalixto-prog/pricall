@@ -7,10 +7,10 @@ para o próximo — se um falhar, não adianta continuar.
 | # | Passo | Onde | Estado |
 | - | ----- | ---- | ------ |
 | 1 | Criar as tabelas | Supabase | ✅ feito |
-| 2 | Conferir as tabelas | Supabase | ⬜ |
-| 3 | Apontar o Vercel para a branch certa | Vercel | ⬜ |
-| 4 | Cadastrar as variáveis de ambiente | Vercel | ⬜ |
-| 5 | Redeploy e conferir o boot | Vercel | ⬜ |
+| 2 | Conferir as tabelas | Supabase | ✅ 28/28/28 |
+| 3 | Apontar o Vercel para a branch certa | Vercel | ✅ feito |
+| 4 | Cadastrar as variáveis de ambiente | Vercel | ✅ as seis |
+| 5 | Deploy e conferir o boot | Vercel | ⬜ |
 | 6 | Criar a empresa e o primeiro usuário | Aplicação | ⬜ |
 | 7 | Conectar a Evolution | Evolution + aplicação | ⬜ |
 | 8 | Mensagem de ponta a ponta | Celular | ⬜ |
@@ -146,10 +146,17 @@ telefone e conteúdo de mensagem viram `[oculto]`.
 
 ---
 
-## 5. Redeploy e conferir o boot
+## 5. Deploy e conferir o boot
 
-Com a branch e as variáveis no lugar, force um **Redeploy** (Deployments ›
-menu do último deploy › Redeploy, com o cache desmarcado).
+**Não use o botão Redeploy aqui.** Ele reconstrói o *mesmo commit* do deploy
+anterior — inclusive a branch antiga. Trocar a Production Branch no passo 3 só
+passa a valer no próximo commit novo, então um Redeploy logo depois recompila
+exatamente o que você acabou de deixar de querer, agora com as variáveis certas
+apontando para o código errado. O deploy fica verde e o site continua sem a
+aplicação.
+
+O que dispara o deploy certo é **um commit novo na branch de produção**. Basta
+qualquer push para `claude/pricall-whatsapp-central-6g7i3a`.
 
 Em **Logs**, procure a linha:
 
