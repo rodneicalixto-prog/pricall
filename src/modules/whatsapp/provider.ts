@@ -67,6 +67,15 @@ export type NormalizedInboundMessage = {
   mediaMimeType?: string;
   mediaFileName?: string;
   replyToWhatsappId?: string;
+  /**
+   * Verdadeiro quando a mensagem saiu do próprio número — tipicamente porque
+   * alguém respondeu pelo aplicativo do celular, fora da central.
+   *
+   * Numa central compartilhada isso precisa entrar no histórico: sem isso, o
+   * painel mostra a pergunta do cliente e não a resposta que ele recebeu, e o
+   * próximo vendedor a atender responde de novo o que já foi respondido.
+   */
+  fromMe?: boolean;
   timestamp: Date;
 };
 

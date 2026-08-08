@@ -540,3 +540,60 @@ describe("autenticidade do webhook da Evolution", () => {
     expect(provider.verifySignature("", new Headers(), url())).toBe(false);
   });
 });
+
+describe("mensagens respondidas pelo celular", () => {
+  /**
+   * Regressão de uma falha que tornava o histórico mentiroso: o parse
+   * descartava tudo com `fromMe`, então o que o vendedor respondia pelo
+   * aplicativo do celular nunca chegava à central. O painel mostrava a
+   * pergunta do cliente sem a resposta que ele havia recebido.
+   */
+  const provider = new EvolutionProvider({});
+
+  const envelope = (fromMe: boolean, id: string) => ({
+    event: "messages.upsert",
+    instance: "pricall",
+    data: {
+      key: { id, remoteJid: "5511987654321@s.whatsapp.net", fromMe },
+      pushName: "Cliente",
+      message: { conversation: "texto" },
+      messageTimestamp: "1786000000",
+    },
+  });
+
+  it("registra a mensagem que o cliente enviou", () => {
+    const [evento] = provider.parseWebhook(envelope(false, "AAA"));
+    expect(evento).toMatchObject({ kind: "message", fromMe: false, from: "5511987654321" });
+  });
+
+  it("registra também a resposta enviada pelo celular", () => {
+    const [evento] = provider.parseWebhook(envelope(true, "BBB"));
+    expect(evento, "resposta própria não pode ser descartada").toBeDefined();
+    expect(evento).toMatchObject({ kind: "message", fromMe: true });
+  });
+
+  it("usa o contato do outro lado nos dois sentidos", () => {
+    // `remoteJid` é sempre a outra ponta, tenha a mensagem chegado ou saído.
+    const recebida = provider.parseWebhook(envelope(false, "CCC"))[0];
+    const enviada = provider.parseWebhook(envelope(true, "DDD"))[0];
+    expect((enviada as { from: string }).from).toBe((recebida as { from: string }).from);
+  });
+
+  it("não adota o pushName como nome do contato em mensagem própria", () => {
+    // Ali o pushName é o nome da empresa, não o de quem está sendo atendido.
+    const [evento] = provider.parseWebhook(envelope(true, "EEE"));
+    expect((evento as { contactName?: string }).contactName).toBeUndefined();
+  });
+
+  it("ignora grupos nos dois sentidos", () => {
+    const grupo = {
+      event: "messages.upsert",
+      instance: "pricall",
+      data: {
+        key: { id: "FFF", remoteJid: "123456@g.us", fromMe: true },
+        message: { conversation: "oi" },
+      },
+    };
+    expect(provider.parseWebhook(grupo)).toHaveLength(0);
+  });
+});

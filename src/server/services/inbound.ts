@@ -173,6 +173,18 @@ async function processInboundMessage(
     businessHours: organization.businessHours,
   });
 
+  /**
+   * Mensagem que saiu do próprio número — alguém respondeu pelo aplicativo do
+   * celular, fora da central. Precisa entrar no histórico como saída: sem
+   * isso o painel mostra a pergunta do cliente e não a resposta que ele
+   * recebeu, e o próximo vendedor responde de novo o que já foi respondido.
+   *
+   * A idempotência por `whatsapp_message_id` cuida do eco: quando a própria
+   * central envia, a Evolution devolve a mesma mensagem por webhook, e ela é
+   * descartada por já existir.
+   */
+  const respostaPropria = event.fromMe === true;
+
   // 8) Salva a mensagem (idempotente pelo whatsapp_message_id).
   const inserted = await db
     .insert(messages)
@@ -180,7 +192,8 @@ async function processInboundMessage(
       organizationId,
       conversationId: conversation.id,
       whatsappMessageId: event.whatsappMessageId,
-      senderType: "contact",
+      // Sem `senderUserId`: não há como saber quem digitou no celular.
+      senderType: respostaPropria ? "seller" : "contact",
       messageType: event.messageType,
       content: event.text ?? null,
       mediaUrl: event.mediaUrl ?? null,
@@ -190,8 +203,8 @@ async function processInboundMessage(
         conversation.id,
         event.replyToWhatsappId,
       ),
-      direction: "inbound",
-      status: "received",
+      direction: respostaPropria ? "outbound" : "inbound",
+      status: respostaPropria ? "sent" : "received",
       sentAt: event.timestamp,
       createdAt: event.timestamp,
     })
@@ -211,13 +224,31 @@ async function processInboundMessage(
     .update(conversations)
     .set({
       lastMessageAt: event.timestamp,
-      lastInboundAt: event.timestamp,
-      unreadCount: sql`${conversations.unreadCount} + 1`,
       updatedAt: new Date(),
       version: sql`${conversations.version} + 1`,
-      ...(conversation.status === "waiting_customer"
-        ? { status: "in_progress" as const }
-        : {}),
+      /**
+       * Resposta própria não é mensagem para ler nem reinicia a janela de
+       * atendimento — ao contrário, indica que o cliente está aguardando
+       * retorno. Contá-la como não lida colocaria um selo vermelho na conversa
+       * por causa do que a própria equipe escreveu.
+       */
+      ...(respostaPropria
+        ? {
+            // Quem respondeu passou a bola ao cliente; a conversa fica
+            // aguardando retorno em vez de continuar como pendente na fila.
+            ...(conversation.status === "in_progress" ||
+            conversation.status === "waiting" ||
+            conversation.status === "unassigned"
+              ? { status: "waiting_customer" as const }
+              : {}),
+          }
+        : {
+            lastInboundAt: event.timestamp,
+            unreadCount: sql`${conversations.unreadCount} + 1`,
+            ...(conversation.status === "waiting_customer"
+              ? { status: "in_progress" as const }
+              : {}),
+          }),
     })
     .where(eq(conversations.id, conversation.id));
 
@@ -235,7 +266,7 @@ async function processInboundMessage(
     type: "message.created",
     conversationId: conversation.id,
     messageId: inserted[0].id,
-    direction: "inbound",
+    direction: respostaPropria ? "outbound" : "inbound",
   });
 
   if (created) {
@@ -261,7 +292,11 @@ async function processInboundMessage(
   }
 
   // 10/11) Distribuição automática e notificação.
-  if (!conversation.assignedUserId) {
+  //
+  // Resposta própria não distribui nem notifica: ninguém precisa ser avisado
+  // do que a própria equipe acabou de escrever, e a conversa já está sendo
+  // atendida por quem respondeu pelo celular.
+  if (!respostaPropria && !conversation.assignedUserId) {
     const outsideHours =
       conversation.outsideBusinessHours &&
       organization.settings?.assignOutsideBusinessHours === false;
@@ -275,7 +310,7 @@ async function processInboundMessage(
         preferredTeamId: connection.teamId ?? null,
       });
     }
-  } else {
+  } else if (!respostaPropria && conversation.assignedUserId) {
     await notify({
       organizationId,
       userId: conversation.assignedUserId,

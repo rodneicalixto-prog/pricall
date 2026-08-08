@@ -248,7 +248,13 @@ function normalizeEvolutionMessage(
   raw: RawEvolutionMessage,
   instance: string,
 ): NormalizedInboundMessage | null {
-  if (!raw.key?.id || raw.key.fromMe) return null;
+  if (!raw.key?.id) return null;
+  /**
+   * `remoteJid` é sempre o outro lado da conversa, tenha a mensagem chegado ou
+   * saído — então ele identifica o contato nos dois casos. Mensagem própria
+   * (`fromMe`) já foi descartada aqui, o que apagava do histórico tudo que o
+   * vendedor respondia pelo celular.
+   */
   const from = jidToPhone(raw.key.remoteJid);
   if (!from) return null;
   // Grupos e listas de transmissão ficam fora do escopo do atendimento 1:1.
@@ -265,8 +271,11 @@ function normalizeEvolutionMessage(
     channelKey: instance,
     whatsappMessageId: raw.key.id,
     from,
-    contactName: raw.pushName,
+    // `pushName` é o nome de quem enviou; em mensagem própria seria o nome da
+    // empresa, não o do contato — então só aproveitamos quando veio de fora.
+    contactName: raw.key.fromMe ? undefined : raw.pushName,
     replyToWhatsappId: m.extendedTextMessage?.contextInfo?.stanzaId,
+    fromMe: raw.key.fromMe === true,
     timestamp,
   };
 
