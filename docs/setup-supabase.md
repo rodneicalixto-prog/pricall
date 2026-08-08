@@ -51,10 +51,12 @@ Em **Project Settings › Database › Connection string**, aba **URI**.
 
 Você precisa de **duas** URLs diferentes:
 
-| Onde pegar                          | Porta | Variável no Vercel      |
-| ----------------------------------- | ----- | ----------------------- |
-| **Transaction pooler**              | 6543  | `DATABASE_URL`          |
-| **Direct connection**               | 5432  | `DATABASE_URL_UNPOOLED` |
+| Onde pegar             | Porta | Variável no Vercel      |
+| ---------------------- | ----- | ----------------------- |
+| **Transaction pooler** | 6543  | `DATABASE_URL`          |
+| **Session pooler**     | 5432  | `DATABASE_URL_UNPOOLED` |
+
+As duas saem do **mesmo host** (`…pooler.supabase.com`) e diferem só na porta.
 
 Em cada uma, troque `[YOUR-PASSWORD]` pela senha do passo 1 e acrescente
 `?sslmode=require` no final.
@@ -62,22 +64,41 @@ Em cada uma, troque `[YOUR-PASSWORD]` pela senha do passo 1 e acrescente
 Exemplo do formato final:
 
 ```
-postgresql://postgres.xxxxx:SUA_SENHA@aws-0-sa-east-1.pooler.supabase.com:6543/postgres?sslmode=require
-postgresql://postgres.xxxxx:SUA_SENHA@aws-0-sa-east-1.pooler.supabase.com:5432/postgres?sslmode=require
+postgresql://postgres.xxxxx:SENHA@aws-0-sa-east-1.pooler.supabase.com:6543/postgres?sslmode=require
+postgresql://postgres.xxxxx:SENHA@aws-0-sa-east-1.pooler.supabase.com:5432/postgres?sslmode=require
 ```
+
+> **Use uma senha só com letras e números.** A senha vai no meio de uma URL, e
+> `@`, `:`, `/`, `?`, `#` e `%` têm significado ali. Uma senha como
+> `Abc@123` faz o endereço ser lido errado e a conexão falha reclamando de
+> **host inválido** — nada indica que o problema é a senha, e é aí que se
+> perde uma tarde. Se já criou uma assim, é mais rápido resetar em
+> **Settings › Database › Reset database password** do que escapar caractere
+> a caractere.
 
 ### Por que duas?
 
-O **pooler** (6543) é o que aguenta o vai-e-vem de conexões curtas do
-serverless — sem ele, o Vercel esgota as conexões do banco rapidamente.
+O **transaction pooler** (6543) é o que aguenta o vai-e-vem de conexões curtas
+do serverless — sem ele, o Vercel esgota as conexões do banco rapidamente. Mas
+o modo transação **descarta `LISTEN/NOTIFY`**, que é o mecanismo pelo qual as
+instâncias avisam umas às outras que chegou mensagem nova.
 
-Mas o pooler em modo transação **descarta `LISTEN/NOTIFY`**, que é o mecanismo
-pelo qual as instâncias avisam umas às outras que chegou mensagem nova. Por
-isso o canal de tempo real usa a **conexão direta** (5432).
+O **session pooler** (5432) mantém a subscrição, porque a conexão fica
+reservada à sessão inteira. É ele que sustenta o tempo real.
 
-Se você configurar só a primeira, o sistema funciona — mas a mensagem nova só
-aparece na tela do colega depois de uns segundos, quando a interface revalida
-sozinha. Não é o fim do mundo, mas é uma degradação evitável.
+### E a "Direct connection"?
+
+O Supabase também oferece uma conexão direta, em `db.<ref>.supabase.co:5432`.
+Ela igualmente preserva o `LISTEN`, mas **atende só em IPv6** — e as funções do
+Vercel saem por IPv4. A conexão simplesmente não se estabelece, a menos que
+você contrate o add-on de IPv4.
+
+Por isso a recomendação aqui é o session pooler: mesmo comportamento para o
+tempo real, e alcançável pela rede do Vercel.
+
+Configurando só a primeira URL o sistema funciona — mas a mensagem nova só
+aparece na tela do colega depois de alguns segundos, quando a interface
+revalida sozinha. Não é o fim do mundo, é uma degradação evitável.
 
 ---
 

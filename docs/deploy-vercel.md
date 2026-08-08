@@ -30,17 +30,22 @@ Você vai precisar de:
 1. Crie um projeto em <https://supabase.com/dashboard>. Anote a senha do banco.
 2. Em **Project Settings › Database › Connection string**, copie **duas** URLs:
 
-| Para que serve            | Onde pegar                        | Vai na variável         |
-| ------------------------- | --------------------------------- | ----------------------- |
-| Consultas da aplicação    | *Transaction pooler* — porta 6543 | `DATABASE_URL`          |
-| Tempo real (LISTEN)       | *Direct connection* — porta 5432  | `DATABASE_URL_UNPOOLED` |
+| Para que serve         | Onde pegar                        | Vai na variável         |
+| ---------------------- | --------------------------------- | ----------------------- |
+| Consultas da aplicação | *Transaction pooler* — porta 6543 | `DATABASE_URL`          |
+| Tempo real (LISTEN)    | *Session pooler* — porta 5432     | `DATABASE_URL_UNPOOLED` |
 
-**As duas são necessárias.** O pooler em modo transação é o que aguenta o
-vai-e-vem de conexões do serverless, mas ele descarta `LISTEN/NOTIFY` — que é
-como as instâncias avisam umas às outras que chegou mensagem nova. Sem a
-conexão direta, o tempo real fica preso a uma instância só.
+**As duas são necessárias.** O modo transação é o que aguenta o vai-e-vem de
+conexões do serverless, mas ele descarta `LISTEN/NOTIFY` — que é como as
+instâncias avisam umas às outras que chegou mensagem nova. O modo sessão
+preserva a subscrição; sem ele, o tempo real fica preso a uma instância só.
 
-Acrescente `?sslmode=require` no fim de cada URL.
+Não use a *Direct connection* (`db.<ref>.supabase.co`): ela atende só em IPv6 e
+as funções do Vercel saem por IPv4.
+
+Acrescente `?sslmode=require` no fim de cada URL, e use uma senha de banco
+apenas com letras e números — caracteres como `@` e `:` quebram a leitura da
+URL e o erro que aparece fala de host inválido, não de senha.
 
 ### Neon
 

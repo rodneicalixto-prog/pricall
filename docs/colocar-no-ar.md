@@ -76,12 +76,18 @@ Em **Settings › Environment Variables**, ambiente **Production**.
 | -------- | ----------- |
 | `APP_URL` | `https://pricall.vercel.app` |
 | `DATABASE_URL` | Supabase › Connection string › **Transaction pooler (6543)** |
-| `DATABASE_URL_UNPOOLED` | Supabase › Connection string › **Direct connection (5432)** |
+| `DATABASE_URL_UNPOOLED` | Supabase › Connection string › **Session pooler (5432)** |
 | `SESSION_SECRET` | `openssl rand -base64 48` |
 | `CRON_SECRET` | `openssl rand -base64 32` |
 
 Nas duas URLs do banco: troque `[YOUR-PASSWORD]` pela senha do projeto e
-acrescente `?sslmode=require` no fim.
+acrescente `?sslmode=require` no fim. As duas saem do **mesmo host**
+(`…pooler.supabase.com`) e mudam só na porta — 6543 e 5432.
+
+> **A senha não pode ter caracteres especiais.** Gere uma só com letras e
+> números. Se ela contiver `@`, `:`, `/`, `?`, `#` ou `%`, a URL fica ambígua e
+> a conexão falha com erro de host inválido — que não parece problema de senha,
+> e por isso custa caro para diagnosticar.
 
 **Não cadastre `DATABASE_DRIVER`.** Com `DATABASE_URL` presente, a aplicação já
 escolhe Postgres sozinha. Se essa variável existir com o valor `pglite`, o boot
