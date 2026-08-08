@@ -83,14 +83,27 @@ jobs:
           login=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "$APP/entrar" || echo 000)
           relatar "- Tela de login: \`$login\`"
 
-          # Sem o cabeçalho do token, o webhook TEM de recusar. Um 200 aqui
-          # significaria que qualquer um na internet injeta mensagem.
-          webhook=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 \
-            -X POST -H 'content-type: application/json' -d '{}' \
-            "$APP/api/webhooks/whatsapp" || echo 000)
+          # O webhook é público, então tem de recusar tudo que não comprove
+          # origem. Dois casos, porque falham por motivos diferentes:
+          #
+          #   envelope desconhecido → 400 (não cai no provedor de demonstração)
+          #   envelope da Evolution sem token → 401 (assinatura não confere)
+          #
+          # Um 200 em qualquer um deles significa que a internet inteira
+          # consegue injetar conversa forjada na central.
+          conferir() {
+            local rotulo="$1" corpo="$2"
+            local resposta
+            resposta=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 \
+              -X POST -H 'content-type: application/json' -d "$corpo" \
+              "$APP/api/webhooks/whatsapp" || echo 000)
+            case "$resposta" in
+              400|401|403) relatar "- $rotulo: \`$resposta\` — recusado, como deve ser" ;;
+              *) relatar "- ⚠️ $rotulo: \`$resposta\` — **deveria recusar**" ;;
+            esac
+          }
 
-          if [ "$webhook" = "401" ] || [ "$webhook" = "403" ]; then
-            relatar "- Webhook sem token: \`$webhook\` — recusado, como deve ser"
-          else
-            relatar "- ⚠️ Webhook sem token: \`$webhook\` — **deveria recusar**"
-          fi
+          conferir "Envelope desconhecido" '{}'
+          conferir "Envelope normalizado" '{"kind":"message","content":"forjada"}'
+          conferir "Evolution sem token" \
+            '{"event":"messages.upsert","instance":"pricall","data":{}}'
